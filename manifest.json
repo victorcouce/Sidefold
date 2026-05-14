@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "__MSG_appName__",
+  "version": "1.0.0",
+  "description": "__MSG_appDescription__",
+  "default_locale": "en",
+
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.youtube.com/*"
+  ],
+
+  "background": {
+    "service_worker": "background.js"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["storage.js", "sidebar.js", "panel.js", "content.js"],
+      "css": ["sidebar.css"],
+      "run_at": "document_idle"
+    }
+  ],
+
+  "action": {
+    "default_title": "YouTube Category Manager"
+  },
+
+  "web_accessible_resources": [
+    {
+      "resources": ["panel.html"],
+      "matches": ["https://www.youtube.com/*"]
+    }
+  ]
+}

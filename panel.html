@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Organizar Suscripciones — YouTube Category Manager</title>
+  <style>
+    /* Reset */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Roboto', Arial, sans-serif;
+      background: #f9f9f9;
+      color: #0f0f0f;
+      min-height: 100vh;
+    }
+
+    /* Layout */
+    .page-header {
+      background: #fff;
+      border-bottom: 1px solid #e0e0e0;
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+
+    .page-header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      flex: 1;
+    }
+
+    .page-body {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 24px 20px;
+    }
+
+    /* Aviso */
+    .notice {
+      background: #fff8e1;
+      border: 1px solid #ffe082;
+      border-radius: 10px;
+      padding: 14px 18px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      line-height: 1.5;
+      color: #5d4037;
+    }
+
+    /* Búsqueda */
+    .search-bar {
+      width: 100%;
+      padding: 11px 18px;
+      border: 1px solid #e0e0e0;
+      border-radius: 24px;
+      font-size: 14px;
+      font-family: inherit;
+      background: #fff;
+      outline: none;
+      margin-bottom: 16px;
+      transition: border-color 0.2s;
+    }
+
+    .search-bar:focus { border-color: #ff0000; }
+
+    /* Leyenda */
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 18px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    .legend-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 14px;
+      border: 2px solid;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    /* Canal */
+    .channel-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid #f0f0f0;
+    }
+
+    .ch-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 220px;
+      flex-shrink: 0;
+    }
+
+    .ch-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+
+    .ch-avatar-placeholder {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: #ff0000;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+
+    .ch-name {
+      font-size: 13px;
+      font-weight: 500;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .ch-cats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      flex: 1;
+    }
+
+    /* Pill de asignación */
+    .assign-pill {
+      padding: 3px 10px;
+      border-radius: 14px;
+      border: 2px solid var(--pill-color, #999);
+      background: transparent;
+      color: var(--pill-color, #999);
+      font-size: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.15s, color 0.15s;
+      white-space: nowrap;
+    }
+
+    .assign-pill:hover { opacity: 0.75; }
+
+    .assign-pill.on {
+      background: var(--pill-color, #999);
+      color: #fff;
+    }
+
+    /* Estado vacío */
+    .empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: #666;
+      font-size: 14px;
+      line-height: 1.7;
+    }
+
+    .empty a { color: #ff0000; }
+
+    /* Contador */
+    .footer {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 16px;
+    }
+
+    .count { font-size: 13px; color: #666; }
+  </style>
+</head>
+<body>
+  <header class="page-header">
+    <h1>📂 Organizar Suscripciones</h1>
+    <span id="page-count" class="count"></span>
+  </header>
+
+  <main class="page-body">
+    <div class="notice">
+      ⚠️ Esta página muestra los canales guardados en caché. Para detectar nuevas
+      suscripciones, abre <a href="https://www.youtube.com" target="_blank">YouTube</a>
+      y despliega el menú de suscripciones antes de volver aquí.
+    </div>
+
+    <input
+      type="search"
+      id="search"
+      class="search-bar"
+      placeholder="🔍 Buscar canal…"
+      aria-label="Buscar canal"
+    >
+
+    <div class="legend" id="legend" aria-label="Categorías"></div>
+    <div id="channel-list" role="list" aria-label="Canales suscritos"></div>
+    <div class="footer"><span class="count" id="footer-count"></span></div>
+  </main>
+
+  <script src="storage.js"></script>
+  <script>
+    /* Panel standalone — funciona sin acceso al DOM de YouTube.
+       Lee canales desde chrome.storage.local (caché generado por panel.js). */
+
+    let allChannels = [];
+    let filterText = '';
+
+    function esc(v) {
+      const d = document.createElement('div');
+      d.appendChild(document.createTextNode(String(v ?? '')));
+      return d.innerHTML;
+    }
+
+    function sanitizeColor(c) {
+      return /^#[0-9A-Fa-f]{3,8}$/.test(c) ? c : '#4285F4';
+    }
+
+    async function render() {
+      const { categories, channelAssignments } = await YCSM.storage.getAll();
+      const sorted = Object.values(categories).sort((a, b) => a.order - b.order);
+
+      // Leyenda
+      const legend = document.getElementById('legend');
+      legend.innerHTML = '';
+      sorted.forEach((cat) => {
+        const color = sanitizeColor(cat.color);
+        const pill = document.createElement('span');
+        pill.className = 'legend-pill';
+        pill.style.cssText = `border-color:${color};color:${color}`;
+        pill.textContent = (cat.emoji ? cat.emoji + ' ' : '') + cat.name;
+        legend.appendChild(pill);
+      });
+
+      const visible = filterText
+        ? allChannels.filter((ch) =>
+            ch.name.toLowerCase().includes(filterText.toLowerCase())
+          )
+        : allChannels;
+
+      document.getElementById('page-count').textContent = `${visible.length} canal${visible.length !== 1 ? 'es' : ''}`;
+      document.getElementById('footer-count').textContent = `${visible.length} canal${visible.length !== 1 ? 'es' : ''}`;
+
+      const list = document.getElementById('channel-list');
+      list.innerHTML = '';
+
+      if (visible.length === 0) {
+        list.innerHTML = `<div class="empty">
+          No hay canales en caché.<br>
+          Visita <a href="https://www.youtube.com" target="_blank">YouTube</a>,
+          despliega el menú de suscripciones y abre el panel desde el sidebar.
+        </div>`;
+        return;
+      }
+
+      visible.forEach((channel) => {
+        const assigned = channelAssignments[channel.id] || [];
+        const row = document.createElement('div');
+        row.className = 'channel-row';
+        row.setAttribute('role', 'listitem');
+
+        const avatarHtml = channel.avatar
+          ? `<img class="ch-avatar" src="${esc(channel.avatar)}" alt="" loading="lazy">`
+          : `<div class="ch-avatar-placeholder">${esc(channel.name.charAt(0).toUpperCase())}</div>`;
+
+        const infoDiv = document.createElement('div');
+        infoDiv.className = 'ch-info';
+        infoDiv.innerHTML = `${avatarHtml}<span class="ch-name" title="${esc(channel.name)}">${esc(channel.name)}</span>`;
+
+        const catsDiv = document.createElement('div');
+        catsDiv.className = 'ch-cats';
+
+        sorted.forEach((cat) => {
+          const color = sanitizeColor(cat.color);
+          const isOn = assigned.includes(cat.id);
+          const pill = document.createElement('button');
+          pill.className = 'assign-pill' + (isOn ? ' on' : '');
+          pill.style.setProperty('--pill-color', color);
+          pill.setAttribute('aria-pressed', isOn ? 'true' : 'false');
+          pill.title = isOn ? `Quitar de "${cat.name}"` : `Añadir a "${cat.name}"`;
+          pill.textContent = (cat.emoji ? cat.emoji + ' ' : '') + cat.name;
+
+          pill.addEventListener('click', async () => {
+            const nowOn = await YCSM.storage.toggleChannelCategory(channel.id, cat.id);
+            pill.classList.toggle('on', nowOn);
+            pill.setAttribute('aria-pressed', nowOn ? 'true' : 'false');
+            pill.title = nowOn ? `Quitar de "${cat.name}"` : `Añadir a "${cat.name}"`;
+          });
+
+          catsDiv.appendChild(pill);
+        });
+
+        row.appendChild(infoDiv);
+        row.appendChild(catsDiv);
+        list.appendChild(row);
+      });
+    }
+
+    async function init() {
+      const { channels } = await YCSM.storage.getCachedChannels();
+      allChannels = channels;
+
+      document.getElementById('search').addEventListener('input', (e) => {
+        filterText = e.target.value;
+        render();
+      });
+
+      YCSM.storage.onChange(() => render());
+      await render();
+    }
+
+    init();
+  </script>
+</body>
+</html>

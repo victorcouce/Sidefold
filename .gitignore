@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Editor
+.vscode/
+*.swp
+*.swo
+
+# Node (por si se añade en el futuro)
+node_modules/

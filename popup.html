@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>YouTube Category Manager</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-wrap">
+
+    <!-- Header -->
+    <header class="popup-header">
+      <h1 class="popup-title">📁 Mis Categorías</h1>
+      <button class="btn-organize" id="btnOrganize" aria-label="Organizar suscripciones en YouTube">
+        ⚙️ Organizar
+      </button>
+    </header>
+
+    <!-- Lista de categorías -->
+    <main class="cat-list" id="catList" role="list" aria-label="Categorías">
+      <div class="loading">Cargando…</div>
+    </main>
+
+    <!-- Formulario añadir / editar -->
+    <section class="add-form" id="addForm" hidden aria-label="Formulario de categoría">
+      <div class="form-row">
+        <input
+          type="text"
+          id="newName"
+          class="field-input"
+          placeholder="Nombre de la categoría…"
+          maxlength="50"
+          aria-label="Nombre de la categoría"
+          autocomplete="off"
+        >
+        <input
+          type="color"
+          id="newColor"
+          value="#4285F4"
+          class="field-color"
+          aria-label="Color de la categoría"
+          title="Color"
+        >
+      </div>
+      <div class="form-row">
+        <input
+          type="text"
+          id="newEmoji"
+          class="field-input field-emoji"
+          placeholder="Emoji (opcional)"
+          maxlength="4"
+          aria-label="Emoji identificador"
+          autocomplete="off"
+        >
+      </div>
+      <div class="form-actions">
+        <button class="btn-primary" id="btnSave">Crear</button>
+        <button class="btn-secondary" id="btnCancel">Cancelar</button>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="popup-footer">
+      <button class="btn-add" id="btnAdd" aria-expanded="false">＋ Nueva categoría</button>
+    </footer>
+
+  </div>
+
+  <script src="storage.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

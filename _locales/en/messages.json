@@ -1,0 +1,10 @@
+{
+  "appName": {
+    "message": "YouTube Category Manager",
+    "description": "Extension name shown in Chrome"
+  },
+  "appDescription": {
+    "message": "Organize your YouTube subscriptions into custom collapsible categories, directly in the sidebar.",
+    "description": "Extension description shown in Chrome Web Store"
+  }
+}
