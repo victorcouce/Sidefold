@@ -6,6 +6,7 @@
   if (!window.YCSM) window.YCSM = {};
 
   let sidebarRoot = null;
+  let dragState = null;
 
   /* ═══════════════════════════════════════════════════════════════
      UTILIDADES
@@ -70,7 +71,7 @@
       );
       const _unseen = !!badgeEl;
 
-      channels.push({ id: channelId, name, avatar, href, _unseen, _domIndex: channels.length });
+      channels.push({ id: channelId, name, avatar, href, _unseen });
     });
 
     return channels;
@@ -84,12 +85,6 @@
     const assigned = channels.filter((ch) =>
       (assignments[ch.id] || []).includes(category.id)
     );
-    // Ordenar por posición en el sidebar de YouTube (índice más bajo = vídeo más reciente).
-    // Los canales sin índice DOM (solo en caché) van al final.
-    const sortedByRecent = assigned
-      .slice()
-      .sort((a, b) => (a._domIndex ?? Infinity) - (b._domIndex ?? Infinity));
-    const avatarChannels = sortedByRecent.slice(0, 3);
 
     const label = (category.emoji ? category.emoji + '\u00a0' : '') + category.name;
 
@@ -99,19 +94,9 @@
     el.dataset.categoryId = category.id;
     el.setAttribute('role', 'option');
     el.setAttribute('aria-label', label);
-
-    const avatarsHtml = avatarChannels.length > 0
-      ? `<span class="ycsm-cat-avatars" aria-hidden="true">${
-          avatarChannels.map(ch =>
-            ch.avatar
-              ? `<img class="ycsm-cat-avatar" src="${escapeHtml(ch.avatar)}" alt="" loading="lazy">`
-              : `<span class="ycsm-cat-avatar ycsm-cat-avatar-fallback">${escapeHtml((ch.name || '?').charAt(0).toUpperCase())}</span>`
-          ).join('')
-        }</span>`
-      : '';
+    el.setAttribute('draggable', 'false');
 
     el.innerHTML = `
-      ${avatarsHtml}
       <span class="ycsm-cat-entry-label">
         <span class="ycsm-cat-entry-name">${escapeHtml(label)}</span>
       </span>
@@ -308,6 +293,67 @@
       }
     };
     setTimeout(() => document.addEventListener('click', closeMenu, true), 0);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     DRAG & DROP (reordenar categorías)
+  ═══════════════════════════════════════════════════════════════ */
+
+  function setupDragHandlers(catEl, categoryId, handle) {
+    handle.addEventListener('mousedown', () => {
+      catEl.setAttribute('draggable', 'true');
+    });
+
+    catEl.addEventListener('dragstart', (e) => {
+      dragState = { categoryId };
+      catEl.classList.add('ycsm-dragging');
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', categoryId);
+    });
+
+    catEl.addEventListener('dragend', () => {
+      catEl.setAttribute('draggable', 'false');
+      catEl.classList.remove('ycsm-dragging');
+      document.querySelectorAll('.ycsm-drag-over')
+        .forEach((el) => el.classList.remove('ycsm-drag-over'));
+      dragState = null;
+    });
+
+    catEl.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (dragState && dragState.categoryId !== categoryId) {
+        catEl.classList.add('ycsm-drag-over');
+        e.dataTransfer.dropEffect = 'move';
+      }
+    });
+
+    catEl.addEventListener('dragleave', (e) => {
+      if (!catEl.contains(e.relatedTarget)) {
+        catEl.classList.remove('ycsm-drag-over');
+      }
+    });
+
+    catEl.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      catEl.classList.remove('ycsm-drag-over');
+      if (!dragState || dragState.categoryId === categoryId) return;
+
+      const list = sidebarRoot?.querySelector('.ycsm-categories-list');
+      if (!list) return;
+
+      const categoryEls = [...list.querySelectorAll(':scope > .ycsm-cat-entry')];
+      const ids = categoryEls.map((el) => el.dataset.categoryId);
+
+      const fromIdx = ids.indexOf(dragState.categoryId);
+      const toIdx = ids.indexOf(categoryId);
+      if (fromIdx === -1 || toIdx === -1) return;
+
+      ids.splice(fromIdx, 1);
+      ids.splice(toIdx, 0, dragState.categoryId);
+
+      await YCSM.storage.reorderCategories(ids);
+      await renderSidebar();
+    });
   }
 
   /* ═══════════════════════════════════════════════════════════════

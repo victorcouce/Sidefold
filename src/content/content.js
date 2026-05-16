@@ -92,6 +92,10 @@
     if (document.getElementById('ycsm-sidebar')) {
       YCSM.sidebar.scheduleRender();
     }
+    // Sincronizar el botón de etiquetas con cualquier cambio de storage
+    if (document.getElementById('ycsm-label-btn')) {
+      YCSM.videoLabel?.scheduleButtonStateUpdate();
+    }
   });
 
   /* ═══════════════════════════════════════════════════════════════
@@ -108,6 +112,11 @@
     } else {
       YCSM.subscriptionsFilter?.cleanup();
     }
+    // Botón de etiquetas en página de vídeo
+    YCSM.videoLabel?.cleanup();
+    if (location.pathname.startsWith('/watch')) {
+      YCSM.videoLabel?.scheduleInject(900);
+    }
   });
 
   // Algunos cambios de ruta también emiten este evento
@@ -115,6 +124,10 @@
     if (!isInjected) scheduleInject(500);
     if (location.pathname === '/feed/subscriptions') {
       setTimeout(() => YCSM.subscriptionsFilter?.injectSubscriptionsNav(), 600);
+    }
+    // Rein­tentar inyección del botón de etiquetas si la página del vídeo cargó más contenido
+    if (location.pathname.startsWith('/watch')) {
+      YCSM.videoLabel?.scheduleInject(600);
     }
   });
 
@@ -130,6 +143,11 @@
 
     // Navbar de suscripciones en carga directa (YouTube tarda en renderizar el grid)
     setTimeout(() => YCSM.subscriptionsFilter?.injectSubscriptionsNav(), 1500);
+
+    // Botón de etiquetas en carga directa de página de vídeo
+    if (location.pathname.startsWith('/watch')) {
+      YCSM.videoLabel?.scheduleInject(1200);
+    }
 
     // Si tras 3 s todavía no inyectamos, reintentar (para cargas lentas)
     if (!isInjected) {

@@ -24,6 +24,7 @@
         "src/content/sidebar.js",
         "src/panel/panel.js",
         "src/content/subscriptions-filter.js",
+        "src/content/video-label.js",
         "src/content/content.js"
       ],
       "css": ["src/content/sidebar.css"],

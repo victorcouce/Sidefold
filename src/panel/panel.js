@@ -268,20 +268,23 @@
       <div class="ycsm-panel-box">
         <div class="ycsm-panel-head">
           <h2>📂 Organizar Suscripciones</h2>
-          <button class="ycsm-btn-select" id="ycsm-btn-select" aria-pressed="false" title="Activar selección múltiple">☐ Seleccionar</button>
+          <button class="ycsm-btn-select" id="ycsm-btn-select" aria-pressed="false" title="Activar selección múltiple"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> Seleccionar</button>
           <button class="ycsm-btn-icon ycsm-panel-x" aria-label="Cerrar panel">✕</button>
         </div>
         <div class="ycsm-panel-body">
           <div class="ycsm-panel-toolbar">
-            <input
-              class="ycsm-panel-search"
-              type="search"
-              placeholder="🔍 Buscar canal…"
-              aria-label="Buscar canal por nombre"
-              autocomplete="off"
-            >
+            <div class="ycsm-search-wrap">
+              <svg class="ycsm-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.6"/><path d="M12.5 13L16 16.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              <input
+                class="ycsm-panel-search"
+                type="search"
+                placeholder="Buscar canal…"
+                aria-label="Buscar canal por nombre"
+                autocomplete="off"
+              >
+            </div>
             <select class="ycsm-panel-sort" aria-label="Ordenar canales">
-              <option value="activity">🕐 Recientes</option>
+              <option value="activity">Recientes</option>
               <option value="name">A → Z</option>
             </select>
           </div>
@@ -349,7 +352,7 @@
     selectionMode = true;
     selectedIds.clear();
     const btn = panelEl.querySelector('#ycsm-btn-select');
-    btn.textContent = '☒ Cancelar';
+    btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg> Cancelar';
     btn.setAttribute('aria-pressed', 'true');
     panelEl.querySelector('.ycsm-panel-box').classList.add('ycsm-selection-active');
     // Añadir clase a todas las tarjetas para mostrar checkbox
@@ -365,7 +368,7 @@
     if (!panelEl) return;
     const btn = panelEl.querySelector('#ycsm-btn-select');
     if (btn) {
-      btn.textContent = '☐ Seleccionar';
+      btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> Seleccionar';
       btn.setAttribute('aria-pressed', 'false');
     }
     panelEl.querySelector('.ycsm-panel-box')?.classList.remove('ycsm-selection-active');
@@ -446,13 +449,25 @@
 
   function loadLastSeen() {
     return new Promise((resolve) => {
-      chrome.storage.local.get('channelLastSeen', (r) => resolve(r.channelLastSeen || {}));
+      try {
+        if (!chrome.runtime?.id) return resolve({});
+        chrome.storage.local.get('channelLastSeen', (r) => {
+          if (chrome.runtime.lastError) return resolve({});
+          resolve(r.channelLastSeen || {});
+        });
+      } catch (_) {
+        resolve({});
+      }
     });
   }
 
   function markChannelSeen(channelId) {
     _lastSeen[channelId] = new Date().toISOString();
-    chrome.storage.local.set({ channelLastSeen: _lastSeen });
+    try {
+      if (chrome.runtime?.id) {
+        chrome.storage.local.set({ channelLastSeen: _lastSeen });
+      }
+    } catch (_) {}
   }
 
   /**
@@ -467,21 +482,320 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════
+     PANTALLA DE GESTIÓN DE ETIQUETAS (vista interna del panel)
+  ═══════════════════════════════════════════════════════════════ */
+
+  async function openManageLabels(autoCreate = false) {
+    if (!panelEl) return;
+
+    const head    = panelEl.querySelector('.ycsm-panel-head');
+    const body    = panelEl.querySelector('.ycsm-panel-body');
+    const foot    = panelEl.querySelector('.ycsm-panel-foot');
+    const bulk    = panelEl.querySelector('.ycsm-panel-bulk');
+    const selectBtn = panelEl.querySelector('#ycsm-btn-select');
+
+    const PENCIL_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+    const TRASH_SVG  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>`;
+
+    // Guardar estado original para restaurarlo al volver
+    const originalHead      = head.innerHTML;
+    const originalBodyHTML  = body.innerHTML;
+    const originalBodyClass = body.className;
+    const box = panelEl.querySelector('.ycsm-panel-box');
+    const originalWidth = box ? box.style.width : '';
+
+    // Reducir ancho del modal en la vista de gestión
+    if (box) box.style.width = '450px';
+
+    function goBack() {
+      // Restaurar ancho original del modal
+      if (box) box.style.width = originalWidth;
+      head.classList.remove('ycsm-panel-head--manage');
+      head.innerHTML = originalHead;
+      // Re-conectar listeners de la cabecera (se pierden al restaurar innerHTML)
+      head.querySelector('.ycsm-panel-x').addEventListener('click', () => panelEl.remove());
+      const newSelectBtn = head.querySelector('#ycsm-btn-select');
+      if (newSelectBtn) {
+        newSelectBtn.hidden = false;
+        newSelectBtn.addEventListener('click', () => {
+          if (selectionMode) exitSelectionMode();
+          else enterSelectionMode();
+        });
+      }
+      if (foot) foot.hidden = false;
+      if (bulk) bulk.hidden = true;
+      body.innerHTML = originalBodyHTML;
+      body.className = originalBodyClass;
+      // Re-conectar eventos del toolbar (se pierden al restaurar innerHTML)
+      const searchInput = body.querySelector('.ycsm-panel-search');
+      if (searchInput) searchInput.addEventListener('input', (e) => { filterText = e.target.value; renderPanelContent(); });
+      const sortSelect = body.querySelector('.ycsm-panel-sort');
+      if (sortSelect) { sortSelect.value = sortBy; sortSelect.addEventListener('change', (e) => { sortBy = e.target.value; renderPanelContent(); }); }
+      renderPanelContent();
+    }
+
+    // Cambiar cabecera
+    head.classList.add('ycsm-panel-head--manage');
+    head.innerHTML = '';
+    const backBtn = document.createElement('button');
+    backBtn.className = 'ycsm-manage-back-btn';
+    backBtn.setAttribute('aria-label', 'Volver');
+    backBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg> Volver`;
+    backBtn.addEventListener('click', goBack);
+
+    const headTitle = document.createElement('h2');
+    headTitle.textContent = 'Gestionar etiquetas';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'ycsm-btn-icon ycsm-panel-x';
+    closeBtn.setAttribute('aria-label', 'Cerrar panel');
+    closeBtn.textContent = '✕';
+    closeBtn.addEventListener('click', () => panelEl.remove());
+
+    head.appendChild(backBtn);
+    head.appendChild(headTitle);
+    head.appendChild(closeBtn);
+
+    if (selectBtn) selectBtn.hidden = true;
+    if (foot) foot.hidden = true;
+    if (bulk) bulk.hidden = true;
+
+    // Limpiar cuerpo y cambiar a vista de gestión
+    body.innerHTML = '';
+    body.className = 'ycsm-panel-body ycsm-manage-view';
+
+    async function renderManageContent() {
+      body.innerHTML = '';
+
+      const { categories, channelAssignments } = await YCSM.storage.getAll();
+      const sorted = Object.values(categories).sort((a, b) => a.order - b.order);
+
+      const countByCat = {};
+      Object.values(channelAssignments).forEach((cats) => {
+        (cats || []).forEach((cid) => { countByCat[cid] = (countByCat[cid] || 0) + 1; });
+      });
+
+      if (sorted.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'ycsm-manage-empty';
+        empty.textContent = 'Todavía no hay etiquetas.';
+        body.appendChild(empty);
+      } else {
+        const sectionTitle = document.createElement('p');
+        sectionTitle.className = 'ycsm-manage-section-title';
+        sectionTitle.textContent = 'Etiquetas existentes';
+        body.appendChild(sectionTitle);
+
+        const list = document.createElement('div');
+        list.className = 'ycsm-manage-list';
+
+        let manageDragState = null;
+
+        sorted.forEach((cat) => {
+          const row = document.createElement('div');
+          row.className = 'ycsm-manage-row';
+          row.dataset.catId = cat.id;
+          row.setAttribute('draggable', 'false');
+
+          const GRIP_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>';
+          const grip = document.createElement('span');
+          grip.className = 'ycsm-manage-grip';
+          grip.innerHTML = GRIP_SVG;
+
+          // Activar draggable solo al hacer mousedown en el grip
+          grip.addEventListener('mousedown', () => { row.setAttribute('draggable', 'true'); });
+
+          row.addEventListener('dragstart', (e) => {
+            manageDragState = cat.id;
+            row.classList.add('ycsm-manage-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', cat.id);
+          });
+          row.addEventListener('dragend', () => {
+            row.setAttribute('draggable', 'false');
+            row.classList.remove('ycsm-manage-dragging');
+            list.querySelectorAll('.ycsm-manage-drag-over').forEach((el) => el.classList.remove('ycsm-manage-drag-over'));
+            manageDragState = null;
+          });
+          row.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (manageDragState && manageDragState !== cat.id) {
+              row.classList.add('ycsm-manage-drag-over');
+              e.dataTransfer.dropEffect = 'move';
+            }
+          });
+          row.addEventListener('dragleave', (e) => {
+            if (!row.contains(e.relatedTarget)) row.classList.remove('ycsm-manage-drag-over');
+          });
+          row.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            row.classList.remove('ycsm-manage-drag-over');
+            if (!manageDragState || manageDragState === cat.id) return;
+            const rows = [...list.querySelectorAll(':scope > .ycsm-manage-row')];
+            const ids = rows.map((r) => r.dataset.catId);
+            const fromIdx = ids.indexOf(manageDragState);
+            const toIdx = ids.indexOf(cat.id);
+            if (fromIdx === -1 || toIdx === -1) return;
+            ids.splice(fromIdx, 1);
+            ids.splice(toIdx, 0, manageDragState);
+            await YCSM.storage.reorderCategories(ids);
+            await renderManageContent();
+          });
+
+          const dot = document.createElement('span');
+          dot.className = 'ycsm-manage-dot';
+          dot.style.background = sanitizeColor(cat.color);
+
+          const name = document.createElement('span');
+          name.className = 'ycsm-manage-name';
+          name.textContent = (cat.emoji ? cat.emoji + ' ' : '') + cat.name;
+
+          const count = document.createElement('span');
+          count.className = 'ycsm-manage-count';
+          const n = countByCat[cat.id] || 0;
+          count.textContent = `${n} canal${n !== 1 ? 'es' : ''}`;
+
+          const actions = document.createElement('div');
+          actions.className = 'ycsm-manage-actions';
+
+          const editBtn = document.createElement('button');
+          editBtn.className = 'ycsm-manage-action-btn';
+          editBtn.setAttribute('aria-label', `Editar ${cat.name}`);
+          editBtn.innerHTML = PENCIL_SVG;
+          editBtn.addEventListener('click', () => openEditLabel(cat));
+
+          const delBtn = document.createElement('button');
+          delBtn.className = 'ycsm-manage-action-btn ycsm-manage-del-btn';
+          delBtn.setAttribute('aria-label', `Eliminar ${cat.name}`);
+          delBtn.innerHTML = TRASH_SVG;
+          delBtn.addEventListener('click', async () => {
+            if (!confirm(`¿Eliminar la etiqueta "${cat.name}"?\nLos canales no se perderán, solo se desasignarán.`)) return;
+            await YCSM.storage.deleteCategory(cat.id);
+            await renderManageContent();
+          });
+
+          actions.appendChild(editBtn);
+          actions.appendChild(delBtn);
+          row.appendChild(grip);
+          row.appendChild(dot);
+          row.appendChild(name);
+          row.appendChild(count);
+          row.appendChild(actions);
+          list.appendChild(row);
+        });
+
+        body.appendChild(list);
+      }
+
+      const addBtn = document.createElement('button');
+      addBtn.className = 'ycsm-manage-add-btn';
+      addBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nueva etiqueta`;
+      addBtn.addEventListener('click', () => openEditLabel(null));
+      body.appendChild(addBtn);
+    }
+
+    function openEditLabel(cat) {
+      const existing = body.querySelector('.ycsm-manage-edit-form');
+      if (existing) existing.remove();
+
+      const form = document.createElement('div');
+      form.className = 'ycsm-manage-edit-form';
+
+      const formTitle = document.createElement('p');
+      formTitle.className = 'ycsm-manage-edit-title';
+      formTitle.textContent = cat ? 'Editar etiqueta' : 'Nueva etiqueta';
+
+      const nameInput = document.createElement('input');
+      nameInput.className = 'ycsm-manage-edit-input';
+      nameInput.type = 'text';
+      nameInput.placeholder = 'Nombre…';
+      nameInput.maxLength = 30;
+      nameInput.value = cat ? cat.name : '';
+
+      const colorInput = document.createElement('input');
+      colorInput.className = 'ycsm-manage-edit-color';
+      colorInput.type = 'color';
+      colorInput.value = cat ? sanitizeColor(cat.color) : '#7c3aed';
+
+      const emojiInput = document.createElement('input');
+      emojiInput.className = 'ycsm-manage-edit-emoji';
+      emojiInput.type = 'text';
+      emojiInput.placeholder = 'Emoji';
+      emojiInput.maxLength = 4;
+      emojiInput.value = cat ? (cat.emoji || '') : '';
+
+      const btnRow = document.createElement('div');
+      btnRow.className = 'ycsm-manage-edit-btns';
+
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'ycsm-manage-edit-save';
+      saveBtn.textContent = 'Guardar';
+      saveBtn.addEventListener('click', async () => {
+        const name = nameInput.value.trim();
+        if (!name) { nameInput.focus(); return; }
+        if (cat) {
+          await YCSM.storage.updateCategory(cat.id, { name, color: colorInput.value, emoji: emojiInput.value.trim() });
+        } else {
+          await YCSM.storage.addCategory(name, colorInput.value, emojiInput.value.trim());
+        }
+        await renderManageContent();
+      });
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'ycsm-manage-edit-cancel';
+      cancelBtn.textContent = 'Cancelar';
+      cancelBtn.addEventListener('click', () => form.remove());
+
+      const fieldRow = document.createElement('div');
+      fieldRow.className = 'ycsm-manage-edit-row';
+      fieldRow.appendChild(colorInput);
+      fieldRow.appendChild(emojiInput);
+      fieldRow.appendChild(nameInput);
+
+      btnRow.appendChild(saveBtn);
+      btnRow.appendChild(cancelBtn);
+      form.appendChild(formTitle);
+      form.appendChild(fieldRow);
+      form.appendChild(btnRow);
+      body.appendChild(form);
+      nameInput.focus();
+    }
+
+    await renderManageContent();
+    if (autoCreate) openEditLabel(null);
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
      RENDER DEL CONTENIDO
   ═══════════════════════════════════════════════════════════════ */
 
   async function renderPanelContent() {
     if (!panelEl) return;
+    // Si estamos en la vista de gestión de etiquetas, no renderizar el contenido principal
+    if (panelEl.querySelector('.ycsm-manage-view')) return;
 
     const { categories, channelAssignments } = await YCSM.storage.getAll();
     const sortedCats = Object.values(categories).sort((a, b) => a.order - b.order);
 
     /* ── Leyenda ── */
     const legend = panelEl.querySelector('.ycsm-panel-legend');
+    if (!legend) return;
     legend.innerHTML = '';
+
+    // Botón gestionar etiquetas (sliders icon)
+    const manageBtn = document.createElement('button');
+    manageBtn.className = 'ycsm-legend-manage-btn';
+    manageBtn.setAttribute('aria-label', 'Gestionar etiquetas');
+    manageBtn.title = 'Gestionar etiquetas';
+    manageBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>`;
+    manageBtn.addEventListener('click', () => openManageLabels());
+    legend.appendChild(manageBtn);
+
     if (sortedCats.length === 0) {
-      legend.innerHTML =
-        '<p style="font-size:13px;color:#606060;margin:0">Sin categorías. Créalas desde el sidebar o el popup.</p>';
+      const empty = document.createElement('p');
+      empty.style.cssText = 'font-size:13px;color:#606060;margin:0;align-self:center';
+      empty.textContent = 'Sin etiquetas. Pulsa el icono para crear.';
+      legend.appendChild(empty);
     } else {
       // Pill "Todos"
       const allPill = document.createElement('button');
@@ -491,47 +805,24 @@
       legend.appendChild(allPill);
 
       sortedCats.forEach((cat) => {
-        const pill = document.createElement('span');
+        const pill = document.createElement('button');
         pill.className = 'ycsm-legend-pill' + (filterCat === cat.id ? ' ycsm-legend-pill-active' : '');
         if (filterCat === cat.id) pill.style.setProperty('--ycsm-pill-active-color', sanitizeColor(cat.color));
-
-        const label = document.createElement('button');
-        label.className = 'ycsm-legend-pill-label';
-        label.textContent = (cat.emoji ? cat.emoji + ' ' : '') + cat.name;
-        label.addEventListener('click', () => {
+        pill.style.padding = '0 16px';
+        pill.textContent = (cat.emoji ? cat.emoji + ' ' : '') + cat.name;
+        pill.addEventListener('click', () => {
           filterCat = filterCat === cat.id ? null : cat.id;
           renderPanelContent();
         });
-
-        const delBtn = document.createElement('button');
-        delBtn.className = 'ycsm-legend-pill-del';
-        delBtn.textContent = '×';
-        delBtn.title = `Eliminar "${cat.name}"`;
-        delBtn.setAttribute('aria-label', `Eliminar categoría ${cat.name}`);
-        delBtn.addEventListener('click', async (e) => {
-          e.stopPropagation();
-          if (!window.confirm(`¿Eliminar la etiqueta "${cat.name}"?\nSe quitará de todos los canales asignados.`)) return;
-          if (filterCat === cat.id) filterCat = null;
-          await YCSM.storage.deleteCategory(cat.id);
-          if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
-          await renderPanelContent();
-        });
-
-        pill.appendChild(label);
-        pill.appendChild(delBtn);
         legend.appendChild(pill);
       });
 
-      // Botón añadir etiqueta
-      const addCatBtn = document.createElement('button');
-      addCatBtn.className = 'ycsm-legend-add-btn';
-      addCatBtn.textContent = '+ Nueva etiqueta';
-      addCatBtn.addEventListener('click', () => {
-        const form = panelEl.querySelector('#ycsm-legend-form');
-        form.hidden = !form.hidden;
-        if (!form.hidden) panelEl.querySelector('#ycsm-legend-form-name').focus();
-      });
-      legend.appendChild(addCatBtn);
+      // Botón "Crear etiqueta" al final de los pills
+      const createPill = document.createElement('button');
+      createPill.className = 'ycsm-legend-create-pill';
+      createPill.textContent = '+ Crear etiqueta';
+      createPill.addEventListener('click', () => openManageLabels(true));
+      legend.appendChild(createPill);
     }
 
     /* ── Ordenación ── */
@@ -609,6 +900,8 @@
       card.style.cursor = 'pointer';
       card.dataset.channelId = channel.id;
 
+      const TIME_ICON_SVG = '<svg class="ycsm-date-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
+
       const avatarClass = 'ycsm-card-avatar';
       const avatarHtml = channel.avatar
         ? `<img class="${avatarClass}" src="${escapeHtml(channel.avatar)}" alt="" loading="lazy">`
@@ -622,13 +915,13 @@
           ${isNew ? '<span class="ycsm-card-new-dot" aria-label="Nuevos vídeos sin ver"></span>' : ''}
         </div>
         <span class="ycsm-card-name" title="${escapeHtml(channel.name)}">${escapeHtml(channel.name)}</span>
-        <span class="ycsm-card-date" data-cid="${escapeHtml(channel.id)}" title="Último vídeo publicado">${_dateCache.get(channel.id) ? '🎥 ' + escapeHtml(formatRelativeDate(_dateCache.get(channel.id))) : ''}</span>
+        <span class="ycsm-card-date" data-cid="${escapeHtml(channel.id)}" title="Último vídeo publicado">${_dateCache.get(channel.id) ? TIME_ICON_SVG + escapeHtml(formatRelativeDate(_dateCache.get(channel.id))) : ''}</span>
         <div class="ycsm-card-cats" role="group" aria-label="Categorías de ${escapeHtml(channel.name)}"></div>
       `;
 
       // Click en modo selección → seleccionar tarjeta; fuera → abrir canal
       card.addEventListener('click', (e) => {
-        if (e.target.closest('.ycsm-assign-pill, .ycsm-card-check')) return;
+        if (e.target.closest('.ycsm-card-check, .ycsm-tag-wrap')) return;
         if (selectionMode) {
           e.preventDefault();
           toggleCardSelection(card, channel.id);
@@ -644,70 +937,175 @@
 
       const catsContainer = card.querySelector('.ycsm-card-cats');
 
-      // Solo mostrar las categorías ya asignadas al canal
-      const assignedCats = sortedCats.filter((cat) => assigned.includes(cat.id));
-
-      if (assignedCats.length === 0) {
-        catsContainer.innerHTML = '';
-      } else {
-        assignedCats.forEach((cat) => {
-          const color = sanitizeColor(cat.color);
-          const pill = document.createElement('button');
-          pill.className = 'ycsm-assign-pill ycsm-pill-on';
-          pill.style.setProperty('--ycsm-pill-color', color);
-          pill.title = `Quitar de "${cat.name}"`;
-          pill.setAttribute('aria-pressed', 'true');
-          pill.textContent = (cat.emoji ? cat.emoji + ' ' : '') + cat.name;
-
-          pill.addEventListener('click', async (e) => {
-            if (selectionMode) { e.stopPropagation(); return; }
-            await YCSM.storage.toggleChannelCategory(channel.id, cat.id);
-            if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
-            await renderPanelContent();
-          });
-
-          catsContainer.appendChild(pill);
-        });
-      }
-
-      // Botón "+" para asignar a más categorías
+      // Botón 🏷️ con dropdown de búsqueda y listado completo de etiquetas
       if (sortedCats.length > 0) {
-        const addBtn = document.createElement('button');
-        addBtn.className = 'ycsm-card-add-cat';
-        addBtn.title = 'Asignar categoría';
-        addBtn.setAttribute('aria-label', `Asignar categoría a ${channel.name}`);
-        addBtn.textContent = '+';
+        const tagWrap = document.createElement('div');
+        tagWrap.className = 'ycsm-tag-wrap';
 
-        const addMenu = document.createElement('div');
-        addMenu.className = 'ycsm-card-add-menu';
-        addMenu.hidden = true;
+        const tagBtn = document.createElement('button');
+        tagBtn.className = 'ycsm-tag-btn';
+        tagBtn.title = 'Gestionar etiquetas';
+        tagBtn.setAttribute('aria-label', `Gestionar etiquetas de ${channel.name}`);
 
-        sortedCats.filter((cat) => !assigned.includes(cat.id)).forEach((cat) => {
-          const color = sanitizeColor(cat.color);
-          const item = document.createElement('button');
-          item.className = 'ycsm-bulk-cat-item';
-          item.style.setProperty('--ycsm-pill-color', color);
-          item.textContent = (cat.emoji ? cat.emoji + ' ' : '') + cat.name;
-          item.addEventListener('click', async (e) => {
-            e.stopPropagation();
-            addMenu.hidden = true;
-            await YCSM.storage.assignChannel(channel.id, cat.id);
-            if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
-            await renderPanelContent();
+        const TAG_SVG = `<svg class="ycsm-tag-btn-icon" width="13" height="13" viewBox="-1 -1 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="overflow:visible"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><circle cx="7" cy="7" r="0.5" fill="currentColor" stroke="none"/></svg>`;
+
+        function renderTagBtnContent() {
+          const currentAssigned = sortedCats.filter((cat) =>
+            (channelAssignments[channel.id] || []).includes(cat.id)
+          );
+          if (currentAssigned.length === 0) {
+            tagBtn.classList.add('ycsm-tag-btn-secondary');
+            tagBtn.innerHTML = TAG_SVG + `<span class="ycsm-tag-btn-empty">Sin etiqueta</span>`;
+          } else if (currentAssigned.length === 1) {
+            tagBtn.classList.remove('ycsm-tag-btn-secondary');
+            const cat = currentAssigned[0];
+            tagBtn.innerHTML = TAG_SVG + `<span class="ycsm-tag-btn-label">${escapeHtml((cat.emoji ? cat.emoji + '\u00a0' : '') + cat.name)}</span>`;
+          } else {
+            tagBtn.classList.remove('ycsm-tag-btn-secondary');
+            tagBtn.innerHTML = TAG_SVG + `<span class="ycsm-tag-btn-count">${currentAssigned.length} etiquetas</span>`;
+          }
+        }
+
+        renderTagBtnContent();
+
+        const dropdown = document.createElement('div');
+        dropdown.className = 'ycsm-tag-dropdown';
+        dropdown.hidden = true;
+
+        const searchInput = document.createElement('input');
+        searchInput.className = 'ycsm-tag-search';
+        searchInput.type = 'search';
+        searchInput.placeholder = 'Buscar etiqueta…';
+        searchInput.autocomplete = 'off';
+        dropdown.appendChild(searchInput);
+
+        const tagList = document.createElement('div');
+        tagList.className = 'ycsm-tag-list';
+        dropdown.appendChild(tagList);
+
+        // Orden alfabético para el dropdown
+        const alphaCats = [...sortedCats].sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
+        );
+
+        function renderTagList(filter = '') {
+          tagList.innerHTML = '';
+          const filtered = filter
+            ? alphaCats.filter((c) => c.name.toLowerCase().includes(filter.toLowerCase()))
+            : alphaCats;
+
+          const TRASH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>';
+          filtered.forEach((cat) => {
+            const isOn = (channelAssignments[channel.id] || []).includes(cat.id);
+            const item = document.createElement('div');
+            item.className = 'ycsm-tag-item' + (isOn ? ' ycsm-tag-item-on' : '');
+
+            const toggleBtn = document.createElement('button');
+            toggleBtn.className = 'ycsm-tag-item-toggle';
+            toggleBtn.innerHTML = `
+              ${isOn ? '<span class="ycsm-tag-check" aria-hidden="true">✓</span>' : '<span class="ycsm-tag-check ycsm-tag-check-empty" aria-hidden="true"></span>'}
+              <span class="ycsm-tag-item-name">${escapeHtml((cat.emoji ? cat.emoji + ' ' : '') + cat.name)}</span>
+            `;
+            toggleBtn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              await YCSM.storage.toggleChannelCategory(channel.id, cat.id);
+              if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
+              await renderPanelContent();
+            });
+
+            item.appendChild(toggleBtn);
+            tagList.appendChild(item);
           });
-          addMenu.appendChild(item);
-        });
 
-        addBtn.addEventListener('click', (e) => {
+          // Si hay búsqueda y no coincide exactamente con ninguna, mostrar opción de crear
+          const trimmed = filter.trim();
+          const exactMatch = trimmed && alphaCats.some(
+            (c) => c.name.toLowerCase() === trimmed.toLowerCase()
+          );
+          if (trimmed && !exactMatch) {
+            const createBtn = document.createElement('button');
+            createBtn.className = 'ycsm-tag-create';
+            createBtn.innerHTML = `<span class="ycsm-tag-create-plus">+</span> Crear "<strong>${escapeHtml(trimmed)}</strong>"`;
+            createBtn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              const newCat = await YCSM.storage.addCategory(trimmed);
+              await YCSM.storage.toggleChannelCategory(channel.id, newCat.id);
+              if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
+              dropdown.hidden = true;
+              await renderPanelContent();
+            });
+            tagList.appendChild(createBtn);
+          } else if (filtered.length === 0 && !trimmed) {
+            const empty = document.createElement('div');
+            empty.className = 'ycsm-tag-empty';
+            empty.textContent = 'Sin etiquetas creadas';
+            tagList.appendChild(empty);
+          }
+        }
+
+        renderTagList();
+
+        searchInput.addEventListener('input', (e) => {
+          e.stopPropagation();
+          renderTagList(e.target.value);
+        });
+        searchInput.addEventListener('click', (e) => e.stopPropagation());
+        searchInput.addEventListener('keydown', (e) => e.stopPropagation());
+
+        tagBtn.addEventListener('click', (e) => {
           e.stopPropagation();
           if (selectionMode) return;
-          // Cerrar otros menús abiertos
-          panelEl.querySelectorAll('.ycsm-card-add-menu:not([hidden])').forEach((m) => { if (m !== addMenu) m.hidden = true; });
-          addMenu.hidden = !addMenu.hidden;
+          panelEl.querySelectorAll('.ycsm-tag-dropdown:not([hidden])').forEach((d) => {
+            if (d !== dropdown) { d.hidden = true; }
+          });
+          document.querySelectorAll('body > .ycsm-tag-dropdown:not([hidden])').forEach((d) => {
+            if (d !== dropdown) { d.hidden = true; }
+          });
+          const isOpen = !dropdown.hidden;
+          dropdown.hidden = isOpen;
+          if (!isOpen) {
+            // Calcular posición fixed para escapar de cualquier overflow
+            const btnRect = tagBtn.getBoundingClientRect();
+            const DROPDOWN_W = 224;
+            const DROPDOWN_MAX_H = 260; // search + list + padding estimado
+            const GAP = 6;
+
+            // Alinear a la derecha del botón, sin salirse del viewport
+            let left = btnRect.right - DROPDOWN_W;
+            if (left < 8) left = 8;
+
+            // Abrir hacia arriba o hacia abajo según espacio disponible
+            const spaceBelow = window.innerHeight - btnRect.bottom - GAP;
+            const spaceAbove = btnRect.top - GAP;
+            let top;
+            if (spaceBelow >= DROPDOWN_MAX_H || spaceBelow >= spaceAbove) {
+              top = btnRect.bottom + GAP;
+            } else {
+              top = btnRect.top - GAP - Math.min(DROPDOWN_MAX_H, spaceAbove);
+            }
+
+            dropdown.style.position = 'fixed';
+            dropdown.style.top = top + 'px';
+            dropdown.style.left = left + 'px';
+            dropdown.style.bottom = '';
+            dropdown.style.right = '';
+            dropdown.style.width = DROPDOWN_W + 'px';
+
+            // Mover al body para escapar de todos los stacking contexts
+            document.body.appendChild(dropdown);
+
+            searchInput.value = '';
+            renderTagList();
+            setTimeout(() => searchInput.focus(), 0);
+          } else {
+            // Devolver al wrap cuando se cierra
+            if (dropdown.parentNode !== tagWrap) tagWrap.appendChild(dropdown);
+          }
         });
 
-        catsContainer.appendChild(addBtn);
-        catsContainer.appendChild(addMenu);
+        tagWrap.appendChild(tagBtn);
+        tagWrap.appendChild(dropdown);
+        catsContainer.appendChild(tagWrap);
       }
 
       list.appendChild(card);
@@ -723,7 +1121,9 @@
           _dateObserver.unobserve(span);
           if (span.textContent) return; // ya tiene fecha del caché
           fetchLastVideoDate(span.dataset.cid).then((iso) => {
-            span.textContent = iso ? '\uD83C\uDFA5 ' + formatRelativeDate(iso) : '';
+            if (iso) {
+              span.innerHTML = TIME_ICON_SVG + escapeHtml(formatRelativeDate(iso));
+            }
             // Actualizar punto azul ahora que tenemos la fecha
             if (hasNewVideo(span.dataset.cid)) {
               const card = span.closest('.ycsm-panel-card');
@@ -857,6 +1257,10 @@
     document.addEventListener('click', () => {
       const menu = panelEl?.querySelector('#ycsm-bulk-cat-menu');
       if (menu) menu.hidden = true;
+      // Cerrar dropdowns de etiqueta (pueden estar en body como fixed)
+      document.querySelectorAll('.ycsm-tag-dropdown:not([hidden])').forEach((d) => {
+        d.hidden = true;
+      });
     }, { capture: true });
 
     document.addEventListener('keydown', handleEscape);
@@ -891,6 +1295,13 @@
 
     _lastSeen = await loadLastSeen();
     await renderPanelContent();
+
+    // Fijar la altura del box tras la primera carga para evitar saltos al cambiar de vista
+    const box = panelEl?.querySelector('.ycsm-panel-box');
+    if (box) {
+      const h = box.getBoundingClientRect().height;
+      box.style.height = h + 'px';
+    }
   }
 
   function close() {
