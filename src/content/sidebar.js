@@ -18,10 +18,6 @@
     return div.innerHTML;
   }
 
-  function sanitizeColor(color) {
-    // Solo permitir colores hexadecimales válidos
-    return /^#[0-9A-Fa-f]{3,8}$/.test(color) ? color : '#4285F4';
-  }
 
   /* ═══════════════════════════════════════════════════════════════
      SCRAPING DEL DOM DE YOUTUBE
@@ -86,7 +82,7 @@
       (assignments[ch.id] || []).includes(category.id)
     );
 
-    const label = (category.emoji ? category.emoji + '\u00a0' : '') + category.name;
+    const label = category.name;
 
     const el = document.createElement('a');
     el.className = 'ycsm-cat-entry';
@@ -150,7 +146,7 @@
       btn.className = 'ycsm-btn-icon ycsm-ctx-btn';
       btn.title = 'Gestionar categorías';
       btn.setAttribute('aria-label', 'Gestionar categorías del canal');
-      btn.textContent = '🏷️';
+      btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>';
       btn.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -251,7 +247,6 @@
     menu.setAttribute('role', 'menu');
 
     sorted.forEach((cat) => {
-      const color = sanitizeColor(cat.color);
       const isAssigned = currentCategoryIds.includes(cat.id);
       const item = document.createElement('label');
       item.className = 'ycsm-ctx-menu-item';
@@ -259,7 +254,6 @@
       item.setAttribute('aria-checked', isAssigned ? 'true' : 'false');
       item.innerHTML = `
         <input type="checkbox" ${isAssigned ? 'checked' : ''} aria-hidden="true">
-        <span class="ycsm-cat-dot" style="background:${color}"></span>
         <span>${escapeHtml(cat.name)}</span>
       `;
 

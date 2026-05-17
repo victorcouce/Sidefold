@@ -1,5 +1,5 @@
 /**
- * video-label.js — Botón "Etiquetar" en la página de vídeo de YouTube.
+ * video-label.js — Botón "Categorizar" en la página de vídeo de YouTube.
  * Inyecta un botón junto a las acciones del vídeo (me gusta, compartir…)
  * que abre un desplegable para asignar el canal a categorías existentes.
  */
@@ -74,11 +74,11 @@
     dropdownEl.id = 'ycsm-video-dropdown';
     dropdownEl.className = 'ycsm-video-dropdown';
     dropdownEl.setAttribute('role', 'dialog');
-    dropdownEl.setAttribute('aria-label', 'Asignar etiqueta al canal');
+    dropdownEl.setAttribute('aria-label', 'Asignar categoría al canal');
 
     dropdownEl.innerHTML = `
       <div class="ycsm-vd-header">
-        <span class="ycsm-vd-title">Etiquetar canal</span>
+        <span class="ycsm-vd-title">Categorizar canal</span>
         <span class="ycsm-vd-subtitle">${escapeHtml(currentChannelName)}</span>
       </div>
       <div class="ycsm-vd-search-wrap">
@@ -89,20 +89,19 @@
           id="ycsm-vd-search"
           class="ycsm-vd-search"
           type="search"
-          placeholder="Buscar etiqueta…"
+          placeholder="Buscar categoría…"
           autocomplete="off"
           spellcheck="false"
-          aria-label="Buscar etiqueta"
+          aria-label="Buscar categoría"
         />
       </div>
-      <ul class="ycsm-vd-list" role="listbox" aria-label="Etiquetas disponibles">
+      <ul class="ycsm-vd-list" role="listbox" aria-label="Categorías disponibles">
         ${
           catList.length === 0
-            ? '<li class="ycsm-vd-empty">No hay etiquetas. Crea una en el panel lateral.</li>'
+            ? '<li class="ycsm-vd-empty">No hay categorías. Crea una en el panel lateral.</li>'
             : catList
                 .map((cat) => {
                   const isChecked = assigned.includes(cat.id);
-                  const emoji = cat.emoji ? escapeHtml(cat.emoji) + '\u00a0' : '';
                   return `
                   <li class="ycsm-vd-item${isChecked ? ' ycsm-vd-item--checked' : ''}"
                       role="option"
@@ -111,7 +110,7 @@
                     <span class="ycsm-vd-check" aria-hidden="true">
                       ${isChecked ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>' : ''}
                     </span>
-                    <span class="ycsm-vd-cat-label">${emoji}${escapeHtml(cat.name)}</span>
+                    <span class="ycsm-vd-cat-label">${escapeHtml(cat.name)}</span>
                   </li>`;
                 })
                 .join('')
@@ -187,10 +186,10 @@
 
   function filterList(query) {
     if (!dropdownEl) return;
-    const q = query.toLowerCase().trim();
+    const q = query.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
     dropdownEl.querySelectorAll('.ycsm-vd-item').forEach((item) => {
       const text =
-        item.querySelector('.ycsm-vd-cat-label')?.textContent?.toLowerCase() || '';
+        (item.querySelector('.ycsm-vd-cat-label')?.textContent || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
       item.style.display = !q || text.includes(q) ? '' : 'none';
     });
   }
@@ -210,7 +209,7 @@
         : '';
     }
 
-    // Actualizar el botón para reflejar si el canal tiene etiquetas
+    // Actualizar el botón para reflejar si el canal tiene categorías
     updateButtonState();
   }
 
@@ -320,16 +319,16 @@
     if (!textEl) return true;
 
     if (!hasLabels) {
-      textEl.textContent = 'Etiquetar';
+      textEl.textContent = 'Categorizar';
     } else if (assignedCats.length === 1) {
       const cat = assignedCats[0];
-      textEl.textContent = (cat.emoji ? cat.emoji + '\u00a0' : '') + cat.name;
+      textEl.textContent = cat.name;
     } else {
-      // Mostrar la primera etiqueta + contador de las demás
+      // Mostrar la primera categoría + contador de las demás
       const first = assignedCats[0];
       const rest = assignedCats.length - 1;
       textEl.textContent =
-        (first.emoji ? first.emoji + '\u00a0' : '') + first.name + ` +${rest}`;
+        first.name + ` +${rest}`;
     }
 
     return true;
@@ -358,14 +357,14 @@
     const btn = document.createElement('button');
     btn.id = 'ycsm-label-btn';
     btn.className = 'ycsm-video-label-btn';
-    btn.setAttribute('aria-label', 'Etiquetar canal');
-    btn.setAttribute('title', 'Asignar este canal a una etiqueta');
+    btn.setAttribute('aria-label', 'Categorizar canal');
+    btn.setAttribute('title', 'Asignar este canal a una categoría');
 
     btn.innerHTML = `
       <svg class="ycsm-label-btn-icon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
         <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z"/>
       </svg>
-      <span class="ycsm-label-btn-text">Etiquetar</span>
+      <span class="ycsm-label-btn-text">Categorizar</span>
     `;
 
     btn.addEventListener('click', (e) => {

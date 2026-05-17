@@ -6,6 +6,15 @@
 (function () {
   if (!window.YCSM) window.YCSM = {};
 
+  /* ── Utilidades ── */
+  function debounce(fn, ms) {
+    let t;
+    return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+  }
+  function normalizeSearch(str) {
+    return str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
+
   let panelEl = null;
   let allChannels = [];
   let filterText = '';
@@ -251,9 +260,7 @@
     return div.innerHTML;
   }
 
-  function sanitizeColor(color) {
-    return /^#[0-9A-Fa-f]{3,8}$/.test(color) ? color : '#4285F4';
-  }
+
 
   function buildPanel() {
     const overlay = document.createElement('div');
@@ -267,21 +274,29 @@
       <div class="ycsm-panel-backdrop" aria-hidden="true"></div>
       <div class="ycsm-panel-box">
         <div class="ycsm-panel-head">
-          <h2>📂 Organizar Suscripciones</h2>
+          <h2>Organizar Suscripciones</h2>
           <button class="ycsm-btn-select" id="ycsm-btn-select" aria-pressed="false" title="Activar selección múltiple"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex-shrink:0"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg> Seleccionar</button>
           <button class="ycsm-btn-icon ycsm-panel-x" aria-label="Cerrar panel">✕</button>
         </div>
         <div class="ycsm-panel-body">
           <div class="ycsm-panel-toolbar">
-            <div class="ycsm-search-wrap">
-              <svg class="ycsm-search-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="none" aria-hidden="true"><circle cx="8.5" cy="8.5" r="5.5" stroke="currentColor" stroke-width="1.6"/><path d="M12.5 13L16 16.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-              <input
-                class="ycsm-panel-search"
-                type="search"
-                placeholder="Buscar canal…"
-                aria-label="Buscar canal por nombre"
-                autocomplete="off"
-              >
+            <div class="ycsm-yt-search-container">
+              <div class="ycsm-yt-search-box">
+                <svg class="ycsm-yt-search-left-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5L20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                <input
+                  class="ycsm-yt-search-input"
+                  type="text"
+                  placeholder="Buscar canal…"
+                  aria-label="Buscar canal por nombre"
+                  autocomplete="off"
+                >
+                <button class="ycsm-yt-search-clear" aria-label="Borrar búsqueda" hidden>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg>
+                </button>
+              </div>
+              <button class="ycsm-yt-search-btn" aria-label="Buscar">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5L20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+              </button>
             </div>
             <select class="ycsm-panel-sort" aria-label="Ordenar canales">
               <option value="activity">Recientes</option>
@@ -290,20 +305,13 @@
           </div>
           <div class="ycsm-panel-legend" aria-label="Categorías disponibles">
           </div>
-          <div class="ycsm-legend-form" id="ycsm-legend-form" hidden>
-            <input class="ycsm-legend-form-name" id="ycsm-legend-form-name" type="text" placeholder="Nombre de la etiqueta…" maxlength="30" autocomplete="off">
-            <input class="ycsm-legend-form-emoji" id="ycsm-legend-form-emoji" type="text" placeholder="🏷️" maxlength="4" autocomplete="off">
-            <input class="ycsm-legend-form-color" id="ycsm-legend-form-color" type="color" value="#4285F4">
-            <button class="ycsm-legend-form-save" id="ycsm-legend-form-save">✓</button>
-            <button class="ycsm-legend-form-cancel" id="ycsm-legend-form-cancel">✕</button>
-          </div>
           <div class="ycsm-panel-channels" role="list" aria-label="Lista de canales suscritos"></div>
         </div>
         <div class="ycsm-panel-bulk" id="ycsm-panel-bulk" hidden>
           <span class="ycsm-bulk-count" id="ycsm-bulk-count">0 seleccionados</span>
           <div class="ycsm-bulk-actions">
             <div class="ycsm-bulk-cat-wrap">
-              <button class="ycsm-bulk-cat-btn" id="ycsm-bulk-cat-btn">🏷️ Asignar categoría</button>
+              <button class="ycsm-bulk-cat-btn" id="ycsm-bulk-cat-btn">Asignar categoría</button>
               <div class="ycsm-bulk-cat-menu" id="ycsm-bulk-cat-menu" hidden></div>
             </div>
 
@@ -482,7 +490,7 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════
-     PANTALLA DE GESTIÓN DE ETIQUETAS (vista interna del panel)
+     PANTALLA DE GESTIÓN DE CATEGORÍAS (vista interna del panel)
   ═══════════════════════════════════════════════════════════════ */
 
   async function openManageLabels(autoCreate = false) {
@@ -527,8 +535,15 @@
       body.innerHTML = originalBodyHTML;
       body.className = originalBodyClass;
       // Re-conectar eventos del toolbar (se pierden al restaurar innerHTML)
-      const searchInput = body.querySelector('.ycsm-panel-search');
-      if (searchInput) searchInput.addEventListener('input', (e) => { filterText = e.target.value; renderPanelContent(); });
+      const searchInput = body.querySelector('.ycsm-yt-search-input');
+      if (searchInput) {
+        const clearBtn = body.querySelector('.ycsm-yt-search-clear');
+        const searchBox = body.querySelector('.ycsm-yt-search-box');
+        searchInput.addEventListener('input', debounce((e) => { filterText = e.target.value; if (clearBtn) clearBtn.hidden = !e.target.value; renderPanelContent(); }, 150));
+        searchInput.addEventListener('focus', () => { if (searchBox) searchBox.classList.add('ycsm-yt-search-focused'); });
+        searchInput.addEventListener('blur', () => { if (searchBox) searchBox.classList.remove('ycsm-yt-search-focused'); });
+        if (clearBtn) clearBtn.addEventListener('click', () => { searchInput.value = ''; clearBtn.hidden = true; filterText = ''; searchInput.focus(); renderPanelContent(); });
+      }
       const sortSelect = body.querySelector('.ycsm-panel-sort');
       if (sortSelect) { sortSelect.value = sortBy; sortSelect.addEventListener('change', (e) => { sortBy = e.target.value; renderPanelContent(); }); }
       renderPanelContent();
@@ -544,7 +559,7 @@
     backBtn.addEventListener('click', goBack);
 
     const headTitle = document.createElement('h2');
-    headTitle.textContent = 'Gestionar etiquetas';
+    headTitle.textContent = 'Gestionar categorías';
 
     const closeBtn = document.createElement('button');
     closeBtn.className = 'ycsm-btn-icon ycsm-panel-x';
@@ -578,12 +593,12 @@
       if (sorted.length === 0) {
         const empty = document.createElement('p');
         empty.className = 'ycsm-manage-empty';
-        empty.textContent = 'Todavía no hay etiquetas.';
+        empty.textContent = 'Todavía no hay categorías.';
         body.appendChild(empty);
       } else {
         const sectionTitle = document.createElement('p');
         sectionTitle.className = 'ycsm-manage-section-title';
-        sectionTitle.textContent = 'Etiquetas existentes';
+        sectionTitle.textContent = 'Categorías existentes';
         body.appendChild(sectionTitle);
 
         const list = document.createElement('div');
@@ -642,13 +657,9 @@
             await renderManageContent();
           });
 
-          const dot = document.createElement('span');
-          dot.className = 'ycsm-manage-dot';
-          dot.style.background = sanitizeColor(cat.color);
-
           const name = document.createElement('span');
           name.className = 'ycsm-manage-name';
-          name.textContent = (cat.emoji ? cat.emoji + ' ' : '') + cat.name;
+          name.textContent = cat.name;
 
           const count = document.createElement('span');
           count.className = 'ycsm-manage-count';
@@ -669,7 +680,7 @@
           delBtn.setAttribute('aria-label', `Eliminar ${cat.name}`);
           delBtn.innerHTML = TRASH_SVG;
           delBtn.addEventListener('click', async () => {
-            if (!confirm(`¿Eliminar la etiqueta "${cat.name}"?\nLos canales no se perderán, solo se desasignarán.`)) return;
+            if (!confirm(`¿Eliminar la categoría "${cat.name}"?\nLos canales no se perderán, solo se desasignarán.`)) return;
             await YCSM.storage.deleteCategory(cat.id);
             await renderManageContent();
           });
@@ -677,7 +688,6 @@
           actions.appendChild(editBtn);
           actions.appendChild(delBtn);
           row.appendChild(grip);
-          row.appendChild(dot);
           row.appendChild(name);
           row.appendChild(count);
           row.appendChild(actions);
@@ -689,7 +699,7 @@
 
       const addBtn = document.createElement('button');
       addBtn.className = 'ycsm-manage-add-btn';
-      addBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nueva etiqueta`;
+      addBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nueva categoría`;
       addBtn.addEventListener('click', () => openEditLabel(null));
       body.appendChild(addBtn);
     }
@@ -703,7 +713,7 @@
 
       const formTitle = document.createElement('p');
       formTitle.className = 'ycsm-manage-edit-title';
-      formTitle.textContent = cat ? 'Editar etiqueta' : 'Nueva etiqueta';
+      formTitle.textContent = cat ? 'Editar categoría' : 'Nueva categoría';
 
       const nameInput = document.createElement('input');
       nameInput.className = 'ycsm-manage-edit-input';
@@ -711,18 +721,6 @@
       nameInput.placeholder = 'Nombre…';
       nameInput.maxLength = 30;
       nameInput.value = cat ? cat.name : '';
-
-      const colorInput = document.createElement('input');
-      colorInput.className = 'ycsm-manage-edit-color';
-      colorInput.type = 'color';
-      colorInput.value = cat ? sanitizeColor(cat.color) : '#7c3aed';
-
-      const emojiInput = document.createElement('input');
-      emojiInput.className = 'ycsm-manage-edit-emoji';
-      emojiInput.type = 'text';
-      emojiInput.placeholder = 'Emoji';
-      emojiInput.maxLength = 4;
-      emojiInput.value = cat ? (cat.emoji || '') : '';
 
       const btnRow = document.createElement('div');
       btnRow.className = 'ycsm-manage-edit-btns';
@@ -734,9 +732,9 @@
         const name = nameInput.value.trim();
         if (!name) { nameInput.focus(); return; }
         if (cat) {
-          await YCSM.storage.updateCategory(cat.id, { name, color: colorInput.value, emoji: emojiInput.value.trim() });
+          await YCSM.storage.updateCategory(cat.id, { name });
         } else {
-          await YCSM.storage.addCategory(name, colorInput.value, emojiInput.value.trim());
+          await YCSM.storage.addCategory(name);
         }
         await renderManageContent();
       });
@@ -748,8 +746,6 @@
 
       const fieldRow = document.createElement('div');
       fieldRow.className = 'ycsm-manage-edit-row';
-      fieldRow.appendChild(colorInput);
-      fieldRow.appendChild(emojiInput);
       fieldRow.appendChild(nameInput);
 
       btnRow.appendChild(saveBtn);
@@ -766,12 +762,249 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════
+     DROPDOWN INLINE DE GESTIÓN DE CATEGORÍAS
+  ═══════════════════════════════════════════════════════════════ */
+
+  function openManageDropdown(wrapEl) {
+    // Toggle: si ya está abierto, cerrar
+    const existing = wrapEl.querySelector('.ycsm-manage-dropdown');
+    if (existing) { existing.remove(); return; }
+
+    const PENCIL_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+    const TRASH_SVG  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>`;
+    const GRIP_SVG   = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="19" r="1"/></svg>`;
+
+    const dropdown = document.createElement('div');
+    dropdown.className = 'ycsm-manage-dropdown';
+
+    // Cabecera
+    const header = document.createElement('div');
+    header.className = 'ycsm-manage-dropdown-header';
+    const titleEl = document.createElement('span');
+    titleEl.className = 'ycsm-manage-dropdown-title';
+    titleEl.textContent = 'Gestionar categorías';
+    header.appendChild(titleEl);
+    dropdown.appendChild(header);
+
+    // Cuerpo scrollable
+    const dropBody = document.createElement('div');
+    dropBody.className = 'ycsm-manage-dropdown-body';
+    dropdown.appendChild(dropBody);
+
+    let closeOnOutside;
+    let onKeydown;
+
+    async function closeAndRefresh() {
+      dropdown.remove();
+      document.removeEventListener('click', closeOnOutside);
+      document.removeEventListener('keydown', onKeydown);
+      await renderPanelContent();
+    }
+
+    closeOnOutside = (e) => {
+      if (!dropdown.contains(e.target) && !wrapEl.contains(e.target)) {
+        closeAndRefresh();
+      }
+    };
+
+    onKeydown = (e) => {
+      if (e.key === 'Escape') closeAndRefresh();
+    };
+
+    async function renderDropdownContent() {
+      dropBody.innerHTML = '';
+
+      const { categories, channelAssignments } = await YCSM.storage.getAll();
+      const sorted = Object.values(categories).sort((a, b) => a.order - b.order);
+
+      const countByCat = {};
+      Object.values(channelAssignments).forEach((cats) => {
+        (cats || []).forEach((cid) => { countByCat[cid] = (countByCat[cid] || 0) + 1; });
+      });
+
+      if (sorted.length === 0) {
+        const empty = document.createElement('p');
+        empty.className = 'ycsm-manage-empty';
+        empty.textContent = 'Todavía no hay categorías.';
+        dropBody.appendChild(empty);
+      } else {
+        const list = document.createElement('div');
+        list.className = 'ycsm-manage-list';
+
+        let manageDragState = null;
+
+        sorted.forEach((cat) => {
+          const row = document.createElement('div');
+          row.className = 'ycsm-manage-row';
+          row.dataset.catId = cat.id;
+          row.setAttribute('draggable', 'false');
+
+          const grip = document.createElement('span');
+          grip.className = 'ycsm-manage-grip';
+          grip.innerHTML = GRIP_SVG;
+          grip.addEventListener('mousedown', () => { row.setAttribute('draggable', 'true'); });
+
+          row.addEventListener('dragstart', (e) => {
+            manageDragState = cat.id;
+            row.classList.add('ycsm-manage-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', cat.id);
+          });
+          row.addEventListener('dragend', () => {
+            row.setAttribute('draggable', 'false');
+            row.classList.remove('ycsm-manage-dragging');
+            list.querySelectorAll('.ycsm-manage-drag-over').forEach((el) => el.classList.remove('ycsm-manage-drag-over'));
+            manageDragState = null;
+          });
+          row.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            if (manageDragState && manageDragState !== cat.id) {
+              row.classList.add('ycsm-manage-drag-over');
+              e.dataTransfer.dropEffect = 'move';
+            }
+          });
+          row.addEventListener('dragleave', (e) => {
+            if (!row.contains(e.relatedTarget)) row.classList.remove('ycsm-manage-drag-over');
+          });
+          row.addEventListener('drop', async (e) => {
+            e.preventDefault();
+            row.classList.remove('ycsm-manage-drag-over');
+            if (!manageDragState || manageDragState === cat.id) return;
+            const rows = [...list.querySelectorAll(':scope > .ycsm-manage-row')];
+            const ids = rows.map((r) => r.dataset.catId);
+            const fromIdx = ids.indexOf(manageDragState);
+            const toIdx = ids.indexOf(cat.id);
+            if (fromIdx === -1 || toIdx === -1) return;
+            ids.splice(fromIdx, 1);
+            ids.splice(toIdx, 0, manageDragState);
+            await YCSM.storage.reorderCategories(ids);
+            await renderDropdownContent();
+          });
+
+          const name = document.createElement('span');
+          name.className = 'ycsm-manage-name';
+          name.textContent = cat.name;
+
+          const count = document.createElement('span');
+          count.className = 'ycsm-manage-count';
+          const n = countByCat[cat.id] || 0;
+          count.textContent = `${n} canal${n !== 1 ? 'es' : ''}`;
+
+          const actions = document.createElement('div');
+          actions.className = 'ycsm-manage-actions';
+
+          const editBtn = document.createElement('button');
+          editBtn.className = 'ycsm-manage-action-btn';
+          editBtn.setAttribute('aria-label', `Editar ${cat.name}`);
+          editBtn.innerHTML = PENCIL_SVG;
+          editBtn.addEventListener('click', () => openDropdownEditLabel(cat));
+
+          const delBtn = document.createElement('button');
+          delBtn.className = 'ycsm-manage-action-btn ycsm-manage-del-btn';
+          delBtn.setAttribute('aria-label', `Eliminar ${cat.name}`);
+          delBtn.innerHTML = TRASH_SVG;
+          delBtn.addEventListener('click', async () => {
+            if (!confirm(`¿Eliminar la categoría "${cat.name}"?\nLos canales no se perderán, solo se desasignarán.`)) return;
+            await YCSM.storage.deleteCategory(cat.id);
+            if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
+            await closeAndRefresh();
+          });
+
+          actions.appendChild(editBtn);
+          actions.appendChild(delBtn);
+          row.appendChild(grip);
+          row.appendChild(name);
+          row.appendChild(count);
+          row.appendChild(actions);
+          list.appendChild(row);
+        });
+
+        dropBody.appendChild(list);
+      }
+
+      const addBtn = document.createElement('button');
+      addBtn.className = 'ycsm-manage-add-btn';
+      addBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Nueva categoría`;
+      addBtn.addEventListener('click', () => openDropdownEditLabel(null));
+      dropBody.appendChild(addBtn);
+    }
+
+    function openDropdownEditLabel(cat) {
+      const existingForm = dropBody.querySelector('.ycsm-manage-edit-form');
+      if (existingForm) existingForm.remove();
+
+      const form = document.createElement('div');
+      form.className = 'ycsm-manage-edit-form';
+
+      const formTitle = document.createElement('p');
+      formTitle.className = 'ycsm-manage-edit-title';
+      formTitle.textContent = cat ? 'Editar categoría' : 'Nueva categoría';
+
+      const nameInput = document.createElement('input');
+      nameInput.className = 'ycsm-manage-edit-input';
+      nameInput.type = 'text';
+      nameInput.placeholder = 'Nombre…';
+      nameInput.maxLength = 30;
+      nameInput.value = cat ? cat.name : '';
+
+      const btnRow = document.createElement('div');
+      btnRow.className = 'ycsm-manage-edit-btns';
+
+      const saveBtn = document.createElement('button');
+      saveBtn.className = 'ycsm-manage-edit-save';
+      saveBtn.textContent = 'Guardar';
+      saveBtn.addEventListener('click', async () => {
+        const name = nameInput.value.trim();
+        if (!name) { nameInput.focus(); return; }
+        if (cat) {
+          await YCSM.storage.updateCategory(cat.id, { name });
+        } else {
+          await YCSM.storage.addCategory(name);
+        }
+        if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
+        await closeAndRefresh();
+      });
+
+      const cancelBtn = document.createElement('button');
+      cancelBtn.className = 'ycsm-manage-edit-cancel';
+      cancelBtn.textContent = 'Cancelar';
+      cancelBtn.addEventListener('click', () => form.remove());
+
+      nameInput.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') saveBtn.click();
+        if (e.key === 'Escape') form.remove();
+      });
+
+      const fieldRow = document.createElement('div');
+      fieldRow.className = 'ycsm-manage-edit-row';
+      fieldRow.appendChild(nameInput);
+
+      btnRow.appendChild(saveBtn);
+      btnRow.appendChild(cancelBtn);
+      form.appendChild(formTitle);
+      form.appendChild(fieldRow);
+      form.appendChild(btnRow);
+      dropBody.appendChild(form);
+      nameInput.focus();
+    }
+
+    wrapEl.appendChild(dropdown);
+
+    setTimeout(() => {
+      document.addEventListener('click', closeOnOutside);
+      document.addEventListener('keydown', onKeydown);
+    }, 0);
+
+    renderDropdownContent();
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
      RENDER DEL CONTENIDO
   ═══════════════════════════════════════════════════════════════ */
 
   async function renderPanelContent() {
     if (!panelEl) return;
-    // Si estamos en la vista de gestión de etiquetas, no renderizar el contenido principal
+    // Si estamos en la vista de gestión de categorías, no renderizar el contenido principal
     if (panelEl.querySelector('.ycsm-manage-view')) return;
 
     const { categories, channelAssignments } = await YCSM.storage.getAll();
@@ -782,19 +1015,25 @@
     if (!legend) return;
     legend.innerHTML = '';
 
-    // Botón gestionar etiquetas (sliders icon)
+    // Botón gestionar categorías (sliders icon)
+    const manageWrap = document.createElement('div');
+    manageWrap.className = 'ycsm-legend-manage-wrap';
+
     const manageBtn = document.createElement('button');
     manageBtn.className = 'ycsm-legend-manage-btn';
-    manageBtn.setAttribute('aria-label', 'Gestionar etiquetas');
-    manageBtn.title = 'Gestionar etiquetas';
+    manageBtn.setAttribute('aria-label', 'Gestionar categorías');
     manageBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>`;
-    manageBtn.addEventListener('click', () => openManageLabels());
-    legend.appendChild(manageBtn);
+    manageBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openManageDropdown(manageWrap);
+    });
+    manageWrap.appendChild(manageBtn);
+    legend.appendChild(manageWrap);
 
     if (sortedCats.length === 0) {
       const empty = document.createElement('p');
       empty.style.cssText = 'font-size:13px;color:#606060;margin:0;align-self:center';
-      empty.textContent = 'Sin etiquetas. Pulsa el icono para crear.';
+      empty.textContent = 'Sin categorías. Pulsa el icono para crear.';
       legend.appendChild(empty);
     } else {
       // Pill "Todos"
@@ -807,9 +1046,9 @@
       sortedCats.forEach((cat) => {
         const pill = document.createElement('button');
         pill.className = 'ycsm-legend-pill' + (filterCat === cat.id ? ' ycsm-legend-pill-active' : '');
-        if (filterCat === cat.id) pill.style.setProperty('--ycsm-pill-active-color', sanitizeColor(cat.color));
+
         pill.style.padding = '0 16px';
-        pill.textContent = (cat.emoji ? cat.emoji + ' ' : '') + cat.name;
+        pill.textContent = cat.name;
         pill.addEventListener('click', () => {
           filterCat = filterCat === cat.id ? null : cat.id;
           renderPanelContent();
@@ -817,12 +1056,84 @@
         legend.appendChild(pill);
       });
 
-      // Botón "Crear etiqueta" al final de los pills
+      // Botón "Crear categoría" al final de los pills — con dropdown inline
+      const createWrap = document.createElement('div');
+      createWrap.className = 'ycsm-legend-create-wrap';
+
       const createPill = document.createElement('button');
       createPill.className = 'ycsm-legend-create-pill';
-      createPill.textContent = '+ Crear etiqueta';
-      createPill.addEventListener('click', () => openManageLabels(true));
-      legend.appendChild(createPill);
+      createPill.textContent = '+';
+      createPill.dataset.tooltip = 'Añadir categoría';
+
+      const addDropdown = document.createElement('div');
+      addDropdown.className = 'ycsm-add-cat-dropdown';
+      addDropdown.hidden = true;
+
+      const addInput = document.createElement('input');
+      addInput.className = 'ycsm-add-cat-input';
+      addInput.type = 'text';
+      addInput.placeholder = 'Nombre de la categoría…';
+      addInput.maxLength = 30;
+      addInput.autocomplete = 'off';
+
+      const addBtnRow = document.createElement('div');
+      addBtnRow.className = 'ycsm-add-cat-btns';
+
+      const addSaveBtn = document.createElement('button');
+      addSaveBtn.className = 'ycsm-add-cat-save';
+      addSaveBtn.textContent = 'Añadir';
+
+      const addCancelBtn = document.createElement('button');
+      addCancelBtn.className = 'ycsm-add-cat-cancel';
+      addCancelBtn.textContent = 'Cancelar';
+
+      const saveNewCategory = async () => {
+        const name = addInput.value.trim();
+        if (!name) { addInput.focus(); return; }
+        await YCSM.storage.addCategory(name);
+        addDropdown.hidden = true;
+        addInput.value = '';
+        if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
+        await renderPanelContent();
+      };
+
+      addSaveBtn.addEventListener('click', saveNewCategory);
+      addCancelBtn.addEventListener('click', () => {
+        addDropdown.hidden = true;
+        addInput.value = '';
+      });
+      addInput.addEventListener('keydown', async (e) => {
+        if (e.key === 'Enter') await saveNewCategory();
+        if (e.key === 'Escape') { addDropdown.hidden = true; addInput.value = ''; }
+      });
+
+      let _closeOnOutside = null;
+      createPill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        addDropdown.hidden = !addDropdown.hidden;
+        if (!addDropdown.hidden) {
+          addInput.focus();
+          _closeOnOutside = (ev) => {
+            if (!createWrap.contains(ev.target)) {
+              addDropdown.hidden = true;
+              addInput.value = '';
+              document.removeEventListener('click', _closeOnOutside);
+            }
+          };
+          // Diferir para que el propio click que abre no lo cierre
+          setTimeout(() => document.addEventListener('click', _closeOnOutside), 0);
+        } else if (_closeOnOutside) {
+          document.removeEventListener('click', _closeOnOutside);
+        }
+      });
+
+      addBtnRow.appendChild(addCancelBtn);
+      addBtnRow.appendChild(addSaveBtn);
+      addDropdown.appendChild(addInput);
+      addDropdown.appendChild(addBtnRow);
+      createWrap.appendChild(createPill);
+      createWrap.appendChild(addDropdown);
+      legend.appendChild(createWrap);
     }
 
     /* ── Ordenación ── */
@@ -837,7 +1148,7 @@
       const needsFetch = allChannels.some((ch) => !_dateCache.has(ch.id));
       if (needsFetch) {
         const list = panelEl.querySelector('.ycsm-panel-channels');
-        list.innerHTML = '<div class="ycsm-panel-empty" style="grid-column:1/-1">⏳ Cargando fechas para ordenar…</div>';
+        list.innerHTML = '<div class="ycsm-panel-empty" style="grid-column:1/-1">Cargando fechas para ordenar…</div>';
         await fetchAllDates(allChannels);
         if (!panelEl) return; // panel cerrado mientras cargaba
       }
@@ -851,23 +1162,30 @@
 
     /* ── Filtrado ── */
     const visible = sorted.filter((ch) => {
-      const matchText = !filterText || ch.name.toLowerCase().includes(filterText.toLowerCase());
+      const matchText = !filterText || normalizeSearch(ch.name).includes(normalizeSearch(filterText));
       const matchCat  = !filterCat  || (channelAssignments[ch.id] || []).includes(filterCat);
       return matchText && matchCat;
     });
 
     const countEl = panelEl.querySelector('.ycsm-panel-count');
-    countEl.textContent = `${visible.length} canal${visible.length !== 1 ? 'es' : ''}`;
+    const hasFilters = !!filterText || !!filterCat;
+    const filterParts = [];
+    if (filterText) filterParts.push(`"${filterText}"`);
+    if (filterCat) {
+      const catName = sortedCats.find(c => c.id === filterCat)?.name;
+      if (catName) filterParts.push(catName);
+    }
+    countEl.textContent = hasFilters
+      ? `${visible.length} de ${sorted.length} (${filterParts.join(' + ')})`
+      : `${visible.length} canal${visible.length !== 1 ? 'es' : ''}`;
 
     /* ── Menú de categorías para asignación masiva ── */
     const catMenu = panelEl.querySelector('#ycsm-bulk-cat-menu');
     catMenu.innerHTML = '';
     sortedCats.forEach((cat) => {
-      const color = sanitizeColor(cat.color);
       const item = document.createElement('button');
       item.className = 'ycsm-bulk-cat-item';
-      item.style.setProperty('--ycsm-pill-color', color);
-      item.textContent = (cat.emoji ? cat.emoji + ' ' : '') + cat.name;
+      item.textContent = cat.name;
       item.addEventListener('click', () => {
         catMenu.hidden = true;
         bulkAssignCategory(cat.id);
@@ -937,17 +1255,19 @@
 
       const catsContainer = card.querySelector('.ycsm-card-cats');
 
-      // Botón 🏷️ con dropdown de búsqueda y listado completo de etiquetas
+      // Botón 🏷️ con dropdown de búsqueda y listado completo de categorías
       if (sortedCats.length > 0) {
         const tagWrap = document.createElement('div');
         tagWrap.className = 'ycsm-tag-wrap';
 
         const tagBtn = document.createElement('button');
         tagBtn.className = 'ycsm-tag-btn';
-        tagBtn.title = 'Gestionar etiquetas';
-        tagBtn.setAttribute('aria-label', `Gestionar etiquetas de ${channel.name}`);
+        tagBtn.title = 'Gestionar categorías';
+        tagBtn.setAttribute('aria-label', `Gestionar categorías de ${channel.name}`);
 
         const TAG_SVG = `<svg class="ycsm-tag-btn-icon" width="13" height="13" viewBox="-1 -1 26 26" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="overflow:visible"><path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z"/><circle cx="7" cy="7" r="0.5" fill="currentColor" stroke="none"/></svg>`;
+
+        const PLUS_SVG = `<svg class="ycsm-tag-btn-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`;
 
         function renderTagBtnContent() {
           const currentAssigned = sortedCats.filter((cat) =>
@@ -955,14 +1275,14 @@
           );
           if (currentAssigned.length === 0) {
             tagBtn.classList.add('ycsm-tag-btn-secondary');
-            tagBtn.innerHTML = TAG_SVG + `<span class="ycsm-tag-btn-empty">Sin etiqueta</span>`;
+            tagBtn.innerHTML = PLUS_SVG + `<span class="ycsm-tag-btn-empty">Categoría</span>`;
           } else if (currentAssigned.length === 1) {
             tagBtn.classList.remove('ycsm-tag-btn-secondary');
             const cat = currentAssigned[0];
-            tagBtn.innerHTML = TAG_SVG + `<span class="ycsm-tag-btn-label">${escapeHtml((cat.emoji ? cat.emoji + '\u00a0' : '') + cat.name)}</span>`;
+            tagBtn.innerHTML = TAG_SVG + `<span class="ycsm-tag-btn-label">${escapeHtml(cat.name)}</span>`;
           } else {
             tagBtn.classList.remove('ycsm-tag-btn-secondary');
-            tagBtn.innerHTML = TAG_SVG + `<span class="ycsm-tag-btn-count">${currentAssigned.length} etiquetas</span>`;
+            tagBtn.innerHTML = TAG_SVG + `<span class="ycsm-tag-btn-count">${currentAssigned.length} categorías</span>`;
           }
         }
 
@@ -972,85 +1292,197 @@
         dropdown.className = 'ycsm-tag-dropdown';
         dropdown.hidden = true;
 
-        const searchInput = document.createElement('input');
-        searchInput.className = 'ycsm-tag-search';
-        searchInput.type = 'search';
-        searchInput.placeholder = 'Buscar etiqueta…';
-        searchInput.autocomplete = 'off';
-        dropdown.appendChild(searchInput);
-
-        const tagList = document.createElement('div');
-        tagList.className = 'ycsm-tag-list';
-        dropdown.appendChild(tagList);
+        // Estado local de cambios pendientes en este dropdown
+        let pendingChanges = new Map(); // catId → true (add) | false (remove)
 
         // Orden alfabético para el dropdown
         const alphaCats = [...sortedCats].sort((a, b) =>
           a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
         );
 
-        function renderTagList(filter = '') {
-          tagList.innerHTML = '';
-          const filtered = filter
-            ? alphaCats.filter((c) => c.name.toLowerCase().includes(filter.toLowerCase()))
-            : alphaCats;
+        // Contar canales por categoría
+        const countByCatDropdown = {};
+        Object.values(channelAssignments).forEach((cats) => {
+          (cats || []).forEach((cid) => { countByCatDropdown[cid] = (countByCatDropdown[cid] || 0) + 1; });
+        });
 
-          const TRASH_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>';
-          filtered.forEach((cat) => {
-            const isOn = (channelAssignments[channel.id] || []).includes(cat.id);
-            const item = document.createElement('div');
-            item.className = 'ycsm-tag-item' + (isOn ? ' ycsm-tag-item-on' : '');
-
-            const toggleBtn = document.createElement('button');
-            toggleBtn.className = 'ycsm-tag-item-toggle';
-            toggleBtn.innerHTML = `
-              ${isOn ? '<span class="ycsm-tag-check" aria-hidden="true">✓</span>' : '<span class="ycsm-tag-check ycsm-tag-check-empty" aria-hidden="true"></span>'}
-              <span class="ycsm-tag-item-name">${escapeHtml((cat.emoji ? cat.emoji + ' ' : '') + cat.name)}</span>
-            `;
-            toggleBtn.addEventListener('click', async (e) => {
-              e.stopPropagation();
-              await YCSM.storage.toggleChannelCategory(channel.id, cat.id);
-              if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
-              await renderPanelContent();
-            });
-
-            item.appendChild(toggleBtn);
-            tagList.appendChild(item);
-          });
-
-          // Si hay búsqueda y no coincide exactamente con ninguna, mostrar opción de crear
-          const trimmed = filter.trim();
-          const exactMatch = trimmed && alphaCats.some(
-            (c) => c.name.toLowerCase() === trimmed.toLowerCase()
-          );
-          if (trimmed && !exactMatch) {
-            const createBtn = document.createElement('button');
-            createBtn.className = 'ycsm-tag-create';
-            createBtn.innerHTML = `<span class="ycsm-tag-create-plus">+</span> Crear "<strong>${escapeHtml(trimmed)}</strong>"`;
-            createBtn.addEventListener('click', async (e) => {
-              e.stopPropagation();
-              const newCat = await YCSM.storage.addCategory(trimmed);
-              await YCSM.storage.toggleChannelCategory(channel.id, newCat.id);
-              if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
-              dropdown.hidden = true;
-              await renderPanelContent();
-            });
-            tagList.appendChild(createBtn);
-          } else if (filtered.length === 0 && !trimmed) {
-            const empty = document.createElement('div');
-            empty.className = 'ycsm-tag-empty';
-            empty.textContent = 'Sin etiquetas creadas';
-            tagList.appendChild(empty);
+        function getEffectiveAssigned() {
+          const base = new Set(channelAssignments[channel.id] || []);
+          for (const [catId, add] of pendingChanges) {
+            if (add) base.add(catId);
+            else base.delete(catId);
           }
+          return base;
         }
 
-        renderTagList();
+        function renderDropdownContent(filter = '') {
+          dropdown.innerHTML = '';
+          const effectiveAssigned = getEffectiveAssigned();
 
-        searchInput.addEventListener('input', (e) => {
-          e.stopPropagation();
-          renderTagList(e.target.value);
-        });
-        searchInput.addEventListener('click', (e) => e.stopPropagation());
-        searchInput.addEventListener('keydown', (e) => e.stopPropagation());
+          // ─── Header: Título + búsqueda + crear ───
+          const header = document.createElement('div');
+          header.className = 'ycsm-dd-header';
+
+          const title = document.createElement('h3');
+          title.className = 'ycsm-dd-title';
+          title.textContent = 'Añadir a categoría';
+          header.appendChild(title);
+
+          const searchInput = document.createElement('input');
+          searchInput.className = 'ycsm-tag-search';
+          searchInput.type = 'search';
+          searchInput.placeholder = 'Buscar categoría…';
+          searchInput.autocomplete = 'off';
+          searchInput.value = filter;
+          header.appendChild(searchInput);
+
+          const createBtn = document.createElement('button');
+          createBtn.className = 'ycsm-dd-create-btn';
+          createBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Crear categoría`;
+          createBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            openManageLabels(true);
+            closeDropdown();
+          });
+          header.appendChild(createBtn);
+
+          dropdown.appendChild(header);
+
+          // ─── Listado completo de categorías (filtrado por búsqueda) ───
+          const filtered = filter
+            ? alphaCats.filter((c) => normalizeSearch(c.name).includes(normalizeSearch(filter)))
+            : alphaCats;
+
+          if (filtered.length > 0) {
+            const catList = document.createElement('div');
+            catList.className = 'ycsm-dd-list';
+
+            filtered.forEach((cat) => {
+              const isOn = effectiveAssigned.has(cat.id);
+              const n = countByCatDropdown[cat.id] || 0;
+              const item = document.createElement('div');
+              item.className = 'ycsm-dd-item' + (isOn ? ' ycsm-dd-item-assigned' : '');
+              item.innerHTML = `
+                <div class="ycsm-dd-item-info">
+                  <span class="ycsm-dd-item-name">${escapeHtml(cat.name)}</span>
+                  <span class="ycsm-dd-item-count">${n} canal${n !== 1 ? 'es' : ''}</span>
+                </div>
+                <button class="ycsm-dd-item-check ${isOn ? 'ycsm-dd-item-check-on' : 'ycsm-dd-item-check-off'}" aria-label="${isOn ? 'Quitar de' : 'Añadir a'} ${escapeHtml(cat.name)}">
+                  ${isOn
+                    ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" fill="currentColor"/><polyline points="9 11 12 14 22 4" stroke="#fff" stroke-width="2.5"/></svg>'
+                    : '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>'
+                  }
+                </button>
+              `;
+              item.querySelector('.ycsm-dd-item-check').addEventListener('click', (e) => {
+                e.stopPropagation();
+                const originallyOn = (channelAssignments[channel.id] || []).includes(cat.id);
+                const newState = !isOn;
+                // Si el nuevo estado coincide con el original, eliminar el cambio pendiente
+                if (newState === originallyOn) {
+                  pendingChanges.delete(cat.id);
+                } else {
+                  pendingChanges.set(cat.id, newState);
+                }
+                renderDropdownContent(searchInput.value);
+              });
+              catList.appendChild(item);
+            });
+
+            dropdown.appendChild(catList);
+          } else if (filter) {
+            const noResults = document.createElement('div');
+            noResults.className = 'ycsm-tag-empty';
+            noResults.textContent = 'Sin resultados';
+            dropdown.appendChild(noResults);
+          } else {
+            const empty = document.createElement('div');
+            empty.className = 'ycsm-tag-empty';
+            empty.textContent = 'Sin categorías creadas';
+            dropdown.appendChild(empty);
+          }
+
+          // ─── Divisor + sección "Pertenece a" (resumen) ───
+          const assignedCats = alphaCats.filter((c) => effectiveAssigned.has(c.id));
+
+          const divider = document.createElement('div');
+          divider.className = 'ycsm-dd-divider';
+          dropdown.appendChild(divider);
+
+          const belongsTitle = document.createElement('h3');
+          belongsTitle.className = 'ycsm-dd-title ycsm-dd-title-belongs';
+          belongsTitle.textContent = 'Pertenece a';
+          dropdown.appendChild(belongsTitle);
+
+          if (assignedCats.length > 0) {
+            const belongsSummary = document.createElement('div');
+            belongsSummary.className = 'ycsm-dd-belongs-summary';
+            belongsSummary.textContent = assignedCats.map((c) => c.name).join(', ');
+            dropdown.appendChild(belongsSummary);
+          } else {
+            const emptyBelongs = document.createElement('div');
+            emptyBelongs.className = 'ycsm-tag-empty';
+            emptyBelongs.textContent = 'Sin categorías';
+            dropdown.appendChild(emptyBelongs);
+          }
+
+          // ─── Footer ───
+          const footer = document.createElement('div');
+          footer.className = 'ycsm-dd-footer';
+
+          const cancelBtn = document.createElement('button');
+          cancelBtn.className = 'ycsm-dd-footer-btn ycsm-dd-footer-cancel';
+          cancelBtn.textContent = 'Cancelar';
+          cancelBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            pendingChanges.clear();
+            closeDropdown();
+          });
+          footer.appendChild(cancelBtn);
+
+          if (pendingChanges.size > 0) {
+            const doneBtn = document.createElement('button');
+            doneBtn.className = 'ycsm-dd-footer-btn ycsm-dd-footer-done';
+            doneBtn.textContent = 'Hecho';
+            doneBtn.addEventListener('click', async (e) => {
+              e.stopPropagation();
+              for (const [catId, add] of pendingChanges) {
+                const isCurrentlyOn = (channelAssignments[channel.id] || []).includes(catId);
+                if (add && !isCurrentlyOn) {
+                  await YCSM.storage.toggleChannelCategory(channel.id, catId);
+                } else if (!add && isCurrentlyOn) {
+                  await YCSM.storage.toggleChannelCategory(channel.id, catId);
+                }
+              }
+              pendingChanges.clear();
+              if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
+              closeDropdown();
+              await renderPanelContent();
+            });
+            footer.appendChild(doneBtn);
+          }
+
+          dropdown.appendChild(footer);
+
+          // Reconectar eventos del search
+          const newSearchInput = dropdown.querySelector('.ycsm-tag-search');
+          newSearchInput.addEventListener('input', (e) => {
+            e.stopPropagation();
+            renderDropdownContent(e.target.value);
+            // Re-enfocar el input tras re-render
+            const si = dropdown.querySelector('.ycsm-tag-search');
+            if (si) { si.focus(); si.setSelectionRange(si.value.length, si.value.length); }
+          });
+          newSearchInput.addEventListener('click', (e) => e.stopPropagation());
+          newSearchInput.addEventListener('keydown', (e) => e.stopPropagation());
+        }
+
+        function closeDropdown() {
+          dropdown.hidden = true;
+          if (dropdown.parentNode !== tagWrap) tagWrap.appendChild(dropdown);
+        }
+
+        renderDropdownContent();
 
         tagBtn.addEventListener('click', (e) => {
           e.stopPropagation();
@@ -1066,8 +1498,8 @@
           if (!isOpen) {
             // Calcular posición fixed para escapar de cualquier overflow
             const btnRect = tagBtn.getBoundingClientRect();
-            const DROPDOWN_W = 224;
-            const DROPDOWN_MAX_H = 260; // search + list + padding estimado
+            const DROPDOWN_W = 260;
+            const DROPDOWN_MAX_H = 380;
             const GAP = 6;
 
             // Alinear a la derecha del botón, sin salirse del viewport
@@ -1094,12 +1526,14 @@
             // Mover al body para escapar de todos los stacking contexts
             document.body.appendChild(dropdown);
 
-            searchInput.value = '';
-            renderTagList();
-            setTimeout(() => searchInput.focus(), 0);
+            pendingChanges.clear();
+            renderDropdownContent();
+            const si = dropdown.querySelector('.ycsm-tag-search');
+            if (si) setTimeout(() => si.focus(), 0);
           } else {
             // Devolver al wrap cuando se cierra
-            if (dropdown.parentNode !== tagWrap) tagWrap.appendChild(dropdown);
+            pendingChanges.clear();
+            closeDropdown();
           }
         });
 
@@ -1206,32 +1640,25 @@
     panelEl.querySelector('.ycsm-panel-x').addEventListener('click', close);
     panelEl.querySelector('.ycsm-panel-close-btn').addEventListener('click', close);
 
-    // Formulario de nueva etiqueta
-    panelEl.querySelector('#ycsm-legend-form-save').addEventListener('click', async () => {
-      const nameEl = panelEl.querySelector('#ycsm-legend-form-name');
-      const name = nameEl.value.trim();
-      if (!name) { nameEl.focus(); return; }
-      const color = panelEl.querySelector('#ycsm-legend-form-color').value;
-      const emoji = panelEl.querySelector('#ycsm-legend-form-emoji').value.trim();
-      await YCSM.storage.addCategory(name, color, emoji);
-      panelEl.querySelector('#ycsm-legend-form').hidden = true;
-      nameEl.value = '';
-      panelEl.querySelector('#ycsm-legend-form-emoji').value = '';
-      panelEl.querySelector('#ycsm-legend-form-color').value = '#4285F4';
-      if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
-      await renderPanelContent();
-    });
-    panelEl.querySelector('#ycsm-legend-form-cancel').addEventListener('click', () => {
-      panelEl.querySelector('#ycsm-legend-form').hidden = true;
-    });
-    panelEl.querySelector('#ycsm-legend-form-name').addEventListener('keydown', async (e) => {
-      if (e.key === 'Enter') panelEl.querySelector('#ycsm-legend-form-save').click();
-      if (e.key === 'Escape') panelEl.querySelector('#ycsm-legend-form-cancel').click();
-    });
-
-    panelEl.querySelector('.ycsm-panel-search').addEventListener('input', (e) => {
+    const ytSearchInput = panelEl.querySelector('.ycsm-yt-search-input');
+    const ytClearBtn = panelEl.querySelector('.ycsm-yt-search-clear');
+    const ytSearchBox = panelEl.querySelector('.ycsm-yt-search-box');
+    ytSearchInput.addEventListener('input', debounce((e) => {
       filterText = e.target.value;
+      ytClearBtn.hidden = !e.target.value;
       renderPanelContent();
+    }, 150));
+    ytSearchInput.addEventListener('focus', () => { ytSearchBox.classList.add('ycsm-yt-search-focused'); });
+    ytSearchInput.addEventListener('blur', () => { ytSearchBox.classList.remove('ycsm-yt-search-focused'); });
+    ytClearBtn.addEventListener('click', () => {
+      ytSearchInput.value = '';
+      ytClearBtn.hidden = true;
+      filterText = '';
+      ytSearchInput.focus();
+      renderPanelContent();
+    });
+    panelEl.querySelector('.ycsm-yt-search-btn').addEventListener('click', () => {
+      ytSearchInput.focus();
     });
 
     const sortSelect = panelEl.querySelector('.ycsm-panel-sort');
@@ -1257,7 +1684,7 @@
     document.addEventListener('click', () => {
       const menu = panelEl?.querySelector('#ycsm-bulk-cat-menu');
       if (menu) menu.hidden = true;
-      // Cerrar dropdowns de etiqueta (pueden estar en body como fixed)
+      // Cerrar dropdowns de categoría (pueden estar en body como fixed)
       document.querySelectorAll('.ycsm-tag-dropdown:not([hidden])').forEach((d) => {
         d.hidden = true;
       });
@@ -1270,7 +1697,7 @@
 
     // Mostrar estado de carga mientras obtenemos canales
     const list = panelEl.querySelector('.ycsm-panel-channels');
-    list.innerHTML = '<div class="ycsm-panel-empty" style="grid-column:1/-1">⏳ Cargando canales…</div>';
+    list.innerHTML = '<div class="ycsm-panel-empty" style="grid-column:1/-1">Cargando canales…</div>';
 
     // Estrategia 1: fetch de /feed/channels → obtiene TODOS los canales sin depender del DOM
     allChannels = await fetchAllSubscriptions();

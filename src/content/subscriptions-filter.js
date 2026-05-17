@@ -158,8 +158,8 @@
     navEl.appendChild(allPill);
 
     sorted.forEach((cat) => {
-      const label = (cat.emoji ? cat.emoji + ' ' : '') + cat.name;
-      const pill = makePill(label, cat.id, activeFilter === cat.id, cat.color);
+      const label = cat.name;
+      const pill = makePill(label, cat.id, activeFilter === cat.id);
       pill.addEventListener('click', () => {
         activeFilter = cat.id;
         refreshPills();
@@ -171,12 +171,11 @@
     return navEl;
   }
 
-  function makePill(text, catId, isActive, color) {
+  function makePill(text, catId, isActive) {
     const btn = document.createElement('button');
     btn.className = 'ycsm-subs-pill' + (isActive ? ' ycsm-subs-pill-active' : '');
     btn.textContent = text;
     if (catId) btn.dataset.catId = catId;
-    if (isActive && color) btn.style.setProperty('--ycsm-subs-pill-color', color);
     return btn;
   }
 
@@ -187,12 +186,6 @@
         ? !pill.dataset.catId
         : pill.dataset.catId === activeFilter;
       pill.classList.toggle('ycsm-subs-pill-active', isActive);
-
-      if (isActive && pill.dataset.catId) {
-        // mantener color si estaba seteado
-      } else {
-        pill.style.removeProperty('--ycsm-subs-pill-color');
-      }
     });
   }
 

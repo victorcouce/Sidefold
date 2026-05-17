@@ -134,11 +134,11 @@
 
   /* ─── CRUD Categorías ──────────────────────────────────────────── */
 
-  async function addCategory(name, color = '#4285F4', emoji = '') {
+  async function addCategory(name) {
     const categories = await getCategories();
     const id = generateId();
     const order = Object.keys(categories).length;
-    categories[id] = { id, name, order, color, emoji, collapsed: false };
+    categories[id] = { id, name, order, collapsed: false };
     await saveCategories(categories);
     return categories[id];
   }
