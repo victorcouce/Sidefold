@@ -2664,12 +2664,18 @@ html[dark] .ycsm-panel-empty {
   flex-shrink: 0;
   box-sizing: border-box;
   outline: none;
-  /* separación respecto al botón anterior */
-  margin-left: 8px;
+  /* separación respecto al botón siguiente */
+  margin-right: 8px;
 }
 
 .ycsm-video-label-btn:hover {
   background: var(--yt-spec-badge-chip-background-hover, rgba(0, 0, 0, 0.1));
+}
+
+.ycsm-video-label-btn--channel {
+  margin-left: 8px;
+  margin-right: 0;
+  order: 999;
 }
 
 .ycsm-video-label-btn:focus-visible {

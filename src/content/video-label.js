@@ -1,6 +1,6 @@
 /**
- * video-label.js — Botón "Categorizar" en la página de vídeo de YouTube.
- * Inyecta un botón junto a las acciones del vídeo (me gusta, compartir…)
+ * video-label.js — Botón "Categorizar" en páginas de vídeo y canal de YouTube.
+ * Inyecta un botón junto a las acciones nativas
  * que abre un desplegable para asignar el canal a categorías existentes.
  */
 (function () {
@@ -25,6 +25,14 @@
 
   function normalizeHref(href) {
     return (href || '').split('?')[0];
+  }
+
+  function isWatchPage() {
+    return location.pathname.startsWith('/watch');
+  }
+
+  function isChannelPage() {
+    return /^\/(@|channel\/|c\/|user\/)/.test(location.pathname);
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -253,12 +261,16 @@
     try {
       for (const script of document.querySelectorAll('script:not([src])')) {
         const text = script.textContent || '';
-        if (!text.includes('videoOwnerRenderer')) continue;
-        // Busca el browseId dentro del contexto de videoOwnerRenderer
-        const match = text.match(
+        if (!text.includes('videoOwnerRenderer') && !text.includes('channelMetadataRenderer')) continue;
+        const metadataMatch = text.match(
+          /"channelMetadataRenderer"\s*:\s*\{[^}]*?"externalId"\s*:\s*"(UC[^"]{10,})"/
+        );
+        if (metadataMatch) return metadataMatch[1];
+
+        const ownerMatch = text.match(
           /"videoOwnerRenderer"\s*:\s*\{[^}]*?"browseId"\s*:\s*"(UC[^"]{10,})"/
         );
-        if (match) return match[1];
+        if (ownerMatch) return ownerMatch[1];
       }
     } catch (_) { /* ignorar */ }
     return null;
@@ -331,7 +343,17 @@
     };
   }
 
-  function getChannelIds() {
+  function makeChannelData(ids, name, preferredId) {
+    if (ids.size === 0) return null;
+    const idList = [...ids].filter(Boolean);
+    const primaryId =
+      preferredId ||
+      idList.find((id) => id.startsWith('UC')) ||
+      idList[0];
+    return { ids: idList, name: name || primaryId, primaryId };
+  }
+
+  function getVideoChannelIds() {
     const ids = new Set();
 
     // El avatar-link es el más fiable: siempre está en ytd-video-owner-renderer
@@ -379,9 +401,45 @@
     if (ucId) ids.add(ucId);
 
     if (ids.size === 0) return null;
-    const idList = [...ids];
-    const primaryId = ucId || idList.find((id) => id.startsWith('UC')) || hrefId || idList[0];
-    return { ids: idList, name, primaryId };
+    return makeChannelData(ids, name, ucId || hrefId);
+  }
+
+  function getChannelPageIds() {
+    const ids = new Set();
+    const canonicalHref =
+      document.querySelector('link[rel="canonical"]')?.href ||
+      document.querySelector('meta[property="og:url"]')?.content ||
+      location.href;
+
+    let href = '';
+    try {
+      href = normalizeHref(new URL(canonicalHref, location.origin).pathname);
+    } catch (_) {
+      href = normalizeHref(location.pathname);
+    }
+
+    const hrefId = href.startsWith('/channel/')
+      ? href.replace('/channel/', '').split('/')[0]
+      : href.split('/').slice(0, 2).join('/');
+    if (hrefId) ids.add(hrefId);
+
+    const ucId = getUCChannelIdFromScripts();
+    if (ucId) ids.add(ucId);
+
+    const name =
+      document.querySelector('meta[property="og:title"]')?.content ||
+      document.querySelector('yt-dynamic-text-view-model h1 span')?.textContent?.trim() ||
+      document.querySelector('ytd-channel-name #text')?.textContent?.trim() ||
+      document.title.replace(/\s*-\s*YouTube\s*$/, '').trim() ||
+      hrefId;
+
+    return makeChannelData(ids, name, ucId || hrefId);
+  }
+
+  function getChannelIds() {
+    if (isWatchPage()) return getVideoChannelIds();
+    if (isChannelPage()) return getChannelPageIds();
+    return null;
   }
 
   async function updateButtonState() {
@@ -489,27 +547,84 @@
     );
   }
 
+  function getChannelButtonPlacement() {
+    const root =
+      document.querySelector('ytd-browse[page-subtype="channels"]') ||
+      document.querySelector('ytd-browse') ||
+      document;
+    const header =
+      root.querySelector('yt-page-header-renderer, page-header-renderer, yt-page-header-view-model, ytd-page-header-renderer') ||
+      root.querySelector('ytd-channel-header-renderer, ytd-c4-tabbed-header-renderer') ||
+      root;
+    const actionHost =
+      header.querySelector('yt-flexible-actions-view-model') ||
+      header.querySelector('#buttons, #actions, #meta #buttons') ||
+      header.querySelector('[class*="actions"]');
+    const shape = (actionHost || header).querySelector(
+      'yt-touch-feedback-shape, ' +
+      'yt-button-shape yt-touch-feedback-shape, ' +
+      'button-view-model yt-touch-feedback-shape, ' +
+      'yt-button-view-model yt-touch-feedback-shape'
+    );
+
+    if (actionHost) {
+      return {
+        host: actionHost,
+        before: null,
+        mode: 'channel',
+      };
+    }
+    if (!shape) return null;
+
+    const nativeButton =
+      shape.closest('yt-button-view-model, button-view-model, ytd-button-renderer, a.yt-spec-button-shape-next, a') ||
+      shape.closest('button') ||
+      shape.parentElement;
+    const host = nativeButton?.parentElement;
+    if (!host) return null;
+
+    return {
+      host,
+      before: nativeButton.nextSibling,
+      mode: 'channel',
+    };
+  }
+
+  function getLabelButtonPlacement() {
+    if (isWatchPage()) {
+      const host = getVideoMenuButtonHost();
+      return host ? { host, before: host.firstElementChild, mode: 'watch' } : null;
+    }
+    if (isChannelPage()) return getChannelButtonPlacement();
+    return null;
+  }
+
   /* ═══════════════════════════════════════════════════════════════
      INYECCIÓN
   ═══════════════════════════════════════════════════════════════ */
 
   async function injectLabelButton() {
-    if (!location.pathname.startsWith('/watch')) return false;
+    if (!isWatchPage() && !isChannelPage()) return false;
 
-    const buttonHost = getVideoMenuButtonHost();
-    if (!buttonHost) return false;
+    const placement = getLabelButtonPlacement();
+    if (!placement) return false;
 
     const existingBtn = document.getElementById('ycsm-label-btn');
     if (existingBtn) {
-      if (existingBtn.parentElement !== buttonHost || buttonHost.firstElementChild !== existingBtn) {
-        buttonHost.insertBefore(existingBtn, buttonHost.firstElementChild);
+      const alreadyPlaced =
+        existingBtn.parentElement === placement.host &&
+        (placement.before === existingBtn || existingBtn.nextSibling === placement.before);
+      if (!alreadyPlaced) {
+        placement.host.insertBefore(existingBtn, placement.before);
       }
+      existingBtn.classList.toggle('ycsm-video-label-btn--channel', placement.mode === 'channel');
       scheduleButtonStateUpdate();
       return true;
     }
 
     const btn = createLabelButton();
-    buttonHost.insertBefore(btn, buttonHost.firstElementChild);
+    btn.classList.toggle('ycsm-video-label-btn--channel', placement.mode === 'channel');
+    placement.host.insertBefore(btn, placement.before);
 
     // Actualizar estado con reintentos (el DOM del canal puede no estar aún)
     scheduleButtonStateUpdate();
@@ -531,6 +646,7 @@
     document.getElementById('ycsm-label-btn')?.remove();
     currentChannelId = null;
     currentChannelName = null;
+    currentChannelData = null;
   }
 
   /* ═══════════════════════════════════════════════════════════════

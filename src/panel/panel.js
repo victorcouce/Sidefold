@@ -1555,10 +1555,8 @@
         // Flag para refrescar el panel al cerrar solo si hubo cambios
         let hasMadeChanges = false;
 
-        // Base alfabética, mutable para creación inline
-        const alphaCats = [...sortedCats].sort((a, b) =>
-          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-        );
+        // Base en el orden definido por el usuario, mutable para creación inline.
+        const orderedCats = [...sortedCats];
 
         // Conteo de canales por categoría (se actualiza en cada toggle)
         const countByCatDropdown = {};
@@ -1566,10 +1564,10 @@
           (cats || []).forEach((cid) => { countByCatDropdown[cid] = (countByCatDropdown[cid] || 0) + 1; });
         });
 
-        // Orden: asignadas al abrir primero (alfa), luego no asignadas (alfa)
+        // Orden: asignadas al abrir primero, luego no asignadas, manteniendo el orden de usuario.
         function buildSortedList() {
-          const assignedItems = alphaCats.filter((c) => originalAssigned.has(c.id));
-          const unassignedItems = alphaCats.filter((c) => !originalAssigned.has(c.id));
+          const assignedItems = orderedCats.filter((c) => originalAssigned.has(c.id));
+          const unassignedItems = orderedCats.filter((c) => !originalAssigned.has(c.id));
           sortedForDropdown = [...assignedItems, ...unassignedItems];
         }
 
@@ -1760,7 +1758,7 @@
                 setTimeout(() => form.classList.remove('ycsm-dd-inline-shake'), 400);
                 return;
               }
-              const isDuplicate = alphaCats.some(
+              const isDuplicate = orderedCats.some(
                 (c) => normalizeSearch(c.name) === normalizeSearch(name)
               );
               if (isDuplicate) {
@@ -1771,8 +1769,8 @@
               confirmBtn.disabled = true;
               const newCat = await YCSM.storage.addCategory(name);
               if (newCat) {
-                alphaCats.push(newCat);
-                alphaCats.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+                orderedCats.push(newCat);
+                orderedCats.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
                 // Asignar directamente al canal sin esperar saveToggle (cat no existe aún en sortedForDropdown)
                 await YCSM.storage.assignChannel(channel.id, newCat.id);
                 if (!channelAssignments[channel.id]) channelAssignments[channel.id] = [];
