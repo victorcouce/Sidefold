@@ -6,6 +6,7 @@
   let isInjected = false;
   let injectTimeout = null;
   let observer = null;
+  let subsNavTimeout = null;   // debounce para injectSubscriptionsNav
 
   /* ═══════════════════════════════════════════════════════════════
      INYECCIÓN CON REINTENTOS
@@ -27,6 +28,14 @@
   function scheduleInject(delayMs = 300) {
     clearTimeout(injectTimeout);
     injectTimeout = setTimeout(tryInject, delayMs);
+  }
+
+  // Debounce centralizado para inyectar el nav de suscripciones.
+  // Cancela el timer anterior, garantizando que solo se ejecuta una inyección
+  // tras el último evento, aunque yt-page-data-updated dispare varias veces.
+  function scheduleSubsNavInject(delayMs = 800) {
+    clearTimeout(subsNavTimeout);
+    subsNavTimeout = setTimeout(() => YCSM.subscriptionsFilter?.injectSubscriptionsNav(), delayMs);
   }
 
   function isChannelPage() {
@@ -122,8 +131,9 @@
     scheduleInject(600);
     // Navbar de suscripciones
     if (location.pathname === '/feed/subscriptions') {
-      setTimeout(() => YCSM.subscriptionsFilter?.injectSubscriptionsNav(), 800);
+      scheduleSubsNavInject(800);
     } else {
+      clearTimeout(subsNavTimeout);
       YCSM.subscriptionsFilter?.cleanup();
     }
     // Botón de categorías en página de vídeo o canal
@@ -137,7 +147,7 @@
   document.addEventListener('yt-page-data-updated', () => {
     if (!isInjected) scheduleInject(500);
     if (location.pathname === '/feed/subscriptions') {
-      setTimeout(() => YCSM.subscriptionsFilter?.injectSubscriptionsNav(), 600);
+      scheduleSubsNavInject(600);
     }
     // Reintentar inyección del botón de categorías si la página cargó más contenido
     if (shouldShowCategoryButton()) {
@@ -156,7 +166,7 @@
     await tryInject();
 
     // Navbar de suscripciones en carga directa (YouTube tarda en renderizar el grid)
-    setTimeout(() => YCSM.subscriptionsFilter?.injectSubscriptionsNav(), 1500);
+    if (location.pathname === '/feed/subscriptions') scheduleSubsNavInject(1500);
 
     // Botón de categorías en carga directa de página de vídeo o canal
     if (shouldShowCategoryButton()) {

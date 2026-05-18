@@ -10,6 +10,7 @@
   let filterObserver = null;
   let navEl = null;
   let _hrefToId = {};        // href normalizado → channelId canónico
+  let _injectVersion = 0;    // se incrementa en cada llamada; las anteriores se autoinvalidan
 
   /* ─── Utilidades ──────────────────────────────────────────── */
 
@@ -148,6 +149,10 @@
     navEl.id = 'ycsm-subs-nav';
     navEl.className = 'ycsm-subs-nav';
 
+    // Contenedor scrollable horizontal (sin wrapping, estilo legend-scroll)
+    const scrollWrap = document.createElement('div');
+    scrollWrap.className = 'ycsm-subs-nav-scroll';
+
     // Pill "Todos"
     const allPill = makePill('Todos', null, activeFilter === null);
     allPill.addEventListener('click', () => {
@@ -155,7 +160,7 @@
       refreshPills();
       applyFilter({ animate: true });
     });
-    navEl.appendChild(allPill);
+    scrollWrap.appendChild(allPill);
 
     sorted.forEach((cat) => {
       const label = cat.name;
@@ -164,9 +169,24 @@
         activeFilter = cat.id;
         refreshPills();
         applyFilter({ animate: true });
+        // Llevar la pill activa al centro del área visible
+        pill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
       });
-      navEl.appendChild(pill);
+      scrollWrap.appendChild(pill);
     });
+
+    navEl.appendChild(scrollWrap);
+
+    // Actualiza las clases de fade según el scroll del contenedor
+    function updateFades() {
+      const sl = scrollWrap.scrollLeft;
+      const maxSl = scrollWrap.scrollWidth - scrollWrap.clientWidth;
+      navEl.classList.toggle('ycsm-subs-can-scroll-left',  sl > 1);
+      navEl.classList.toggle('ycsm-subs-can-scroll-right', sl < maxSl - 1);
+    }
+    scrollWrap.addEventListener('scroll', updateFades, { passive: true });
+    // Evaluar estado inicial tras pintar (el scroll puede estar a 0 aunque haya overflow)
+    requestAnimationFrame(() => requestAnimationFrame(updateFades));
 
     return navEl;
   }
@@ -229,14 +249,35 @@
       return;
     }
 
+    // Cada llamada toma un número de versión; si llega una más nueva, esta se cancela
+    const myVersion = ++_injectVersion;
+
     await buildHrefMap();
+    if (_injectVersion !== myVersion || !isSubscriptionsPage()) return;
 
     const { categories } = await YCSM.storage.getAll();
     if (Object.keys(categories).length === 0) return;
 
-    // Esperar el grid con reintentos
+    // Esperar el grid con polling (en navegación SPA puede tardar en aparecer)
     let grid = document.querySelector('ytd-rich-grid-renderer');
-    if (!grid) return;
+    if (!grid) {
+      for (let i = 0; i < 15; i++) {
+        await new Promise((r) => setTimeout(r, 400));
+        if (_injectVersion !== myVersion || !isSubscriptionsPage()) return;
+        grid = document.querySelector('ytd-rich-grid-renderer');
+        if (grid) break;
+      }
+      if (!grid) return;
+    }
+
+    if (_injectVersion !== myVersion) return;
+
+    // Si el nav ya está correctamente posicionado, no reinsertar
+    if (navEl && navEl.isConnected && navEl.nextElementSibling === grid) {
+      setupFilterObserver();
+      applyFilter({ animate: false });
+      return;
+    }
 
     // Recuperar filtro pendiente (viene de clic en sidebar)
     const pending = sessionStorage.getItem('ycsm_pending_filter');
@@ -246,8 +287,9 @@
     }
 
     const nav = await buildNav();
-    grid.parentElement.insertBefore(nav, grid);
+    if (_injectVersion !== myVersion || !isSubscriptionsPage()) return;
 
+    grid.parentElement.insertBefore(nav, grid);
     setupFilterObserver();
     applyFilter({ animate: false });
   }
@@ -266,6 +308,7 @@
     navEl = null;
     activeFilter = null;
     _hrefToId = {};
+    _injectVersion++; // invalida cualquier inyección pendiente
   }
 
   function activateFilter(categoryId) {

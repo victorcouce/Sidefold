@@ -1434,18 +1434,78 @@
       : `${visible.length} canal${visible.length !== 1 ? 'es' : ''}`;
 
     /* ── Menú de categorías para asignación masiva ── */
-    const catMenu = panelEl.querySelector('#ycsm-bulk-cat-menu');
+    // El menú puede estar en body si estaba abierto: devolverlo al wrapper antes de limpiar
+    const catMenu = document.getElementById('ycsm-bulk-cat-menu');
+    const _catWrap = panelEl.querySelector('.ycsm-bulk-cat-wrap');
+    if (catMenu && _catWrap && catMenu.parentNode !== _catWrap) _catWrap.appendChild(catMenu);
     catMenu.innerHTML = '';
+
+    // Header (mismo patrón que ycsm-manage-dropdown)
+    const menuHeader = document.createElement('div');
+    menuHeader.className = 'ycsm-bulk-cat-menu-header';
+    const menuTitle = document.createElement('span');
+    menuTitle.className = 'ycsm-bulk-cat-menu-title';
+    menuTitle.textContent = 'Asignar categoría';
+    menuHeader.appendChild(menuTitle);
+    catMenu.appendChild(menuHeader);
+
+    // Buscador
+    const menuSearch = document.createElement('div');
+    menuSearch.className = 'ycsm-bulk-cat-search-wrap';
+    const searchBox = document.createElement('div');
+    searchBox.className = 'ycsm-dd-search-box';
+    const searchIconEl = document.createElement('span');
+    searchIconEl.className = 'ycsm-dd-search-icon';
+    searchIconEl.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L20 20" stroke-linecap="round"/></svg>`;
+    const searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'ycsm-dd-search-input ycsm-bulk-cat-search-input';
+    searchInput.placeholder = 'Buscar categoría…';
+    searchInput.autocomplete = 'off';
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'ycsm-dd-search-clear';
+    clearBtn.hidden = true;
+    clearBtn.setAttribute('aria-label', 'Borrar búsqueda');
+    clearBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg>`;
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      clearBtn.hidden = !q;
+      menuBody.querySelectorAll('.ycsm-bulk-cat-item').forEach((item) => {
+        item.hidden = q ? !item.textContent.toLowerCase().includes(q) : false;
+      });
+    });
+    clearBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      searchInput.value = '';
+      clearBtn.hidden = true;
+      menuBody.querySelectorAll('.ycsm-bulk-cat-item').forEach((item) => { item.hidden = false; });
+      searchInput.focus();
+    });
+    searchInput.addEventListener('focus', () => searchBox.classList.add('ycsm-dd-search-focused'));
+    searchInput.addEventListener('blur', () => searchBox.classList.remove('ycsm-dd-search-focused'));
+    searchBox.appendChild(searchIconEl);
+    searchBox.appendChild(searchInput);
+    searchBox.appendChild(clearBtn);
+    menuSearch.appendChild(searchBox);
+    catMenu.appendChild(menuSearch);
+
+    // Body scrollable
+    const menuBody = document.createElement('div');
+    menuBody.className = 'ycsm-bulk-cat-menu-body';
     sortedCats.forEach((cat) => {
       const item = document.createElement('button');
       item.className = 'ycsm-bulk-cat-item';
       item.textContent = cat.name;
-      item.addEventListener('click', () => {
+      item.addEventListener('click', (e) => {
+        e.stopPropagation();
         catMenu.hidden = true;
+        if (_catWrap && catMenu.parentNode !== _catWrap) _catWrap.appendChild(catMenu);
         bulkAssignCategory(cat.id);
       });
-      catMenu.appendChild(item);
+      menuBody.appendChild(item);
     });
+    catMenu.appendChild(menuBody);
 
     /* ── Lista de canales ── */
     const list = panelEl.querySelector('.ycsm-panel-channels');
@@ -2136,15 +2196,44 @@
       else enterSelectionMode();
     });
 
-    // Asignación masiva: toggle menú de categorías
+    // Asignación masiva: toggle menú de categorías (fixed para escapar overflow:hidden del panel)
     panelEl.querySelector('#ycsm-bulk-cat-btn').addEventListener('click', (e) => {
       e.stopPropagation();
-      const menu = panelEl.querySelector('#ycsm-bulk-cat-menu');
-      menu.hidden = !menu.hidden;
+      const menu = document.getElementById('ycsm-bulk-cat-menu');
+      if (!menu) return;
+      const catWrap = panelEl.querySelector('.ycsm-bulk-cat-wrap');
+      if (!menu.hidden) {
+        menu.hidden = true;
+        if (catWrap && menu.parentNode !== catWrap) catWrap.appendChild(menu);
+        return;
+      }
+      // Calcular posición fixed para escapar de overflow:hidden
+      const btnRect = e.currentTarget.getBoundingClientRect();
+      const MENU_W = 260;
+      const MENU_MAX_H = 360;
+      const GAP = 6;
+      let left = btnRect.left;
+      if (left + MENU_W > window.innerWidth - 8) left = window.innerWidth - MENU_W - 8;
+      if (left < 8) left = 8;
+      const spaceBelow = window.innerHeight - btnRect.bottom - GAP;
+      const spaceAbove = btnRect.top - GAP;
+      const top = (spaceBelow >= MENU_MAX_H || spaceBelow >= spaceAbove)
+        ? btnRect.bottom + GAP
+        : btnRect.top - GAP - Math.min(MENU_MAX_H, spaceAbove);
+      menu.style.cssText = `position:fixed;top:${top}px;left:${left}px;bottom:auto;right:auto;width:${MENU_W}px`;
+      document.body.appendChild(menu);
+      menu.hidden = false;
+      // Limpiar búsqueda y enfocar input
+      const si = menu.querySelector('.ycsm-bulk-cat-search-input');
+      if (si) { si.value = ''; si.dispatchEvent(new Event('input')); setTimeout(() => si.focus(), 0); }
     });
     _panelClickHandler = (e) => {
-      const menu = panelEl?.querySelector('#ycsm-bulk-cat-menu');
-      if (menu) menu.hidden = true;
+      const menu = document.getElementById('ycsm-bulk-cat-menu');
+      if (menu && !menu.hidden && !menu.contains(e.target) && !e.target.closest('#ycsm-bulk-cat-btn')) {
+        menu.hidden = true;
+        const catWrap = panelEl?.querySelector('.ycsm-bulk-cat-wrap');
+        if (catWrap && menu.parentNode !== catWrap) catWrap.appendChild(menu);
+      }
       // Cerrar dropdowns de categoría (pueden estar en body como fixed)
       // Solo cerrar si no hay cambios pendientes de confirmar
       document.querySelectorAll('.ycsm-tag-dropdown:not([hidden])').forEach((d) => {

@@ -174,6 +174,20 @@
   outline-offset: 1px;
 }
 
+/* ─── Lista de categorías ────────────────────────────────────── */
+.ycsm-categories-list {
+  max-height: 320px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+.ycsm-categories-list::-webkit-scrollbar {
+  width: 4px;
+}
+.ycsm-categories-list::-webkit-scrollbar-thumb {
+  background: var(--ycsm-line);
+  border-radius: 2px;
+}
+
 /* ─── Entrada de categoría (estilo nativo ytd-guide-entry) ──── */
 .ycsm-cat-entry {
   display: flex;
@@ -1536,18 +1550,53 @@ html[dark] .ycsm-bulk-count { color: var(--ycsm-action); }
 
 /* ─── Menú desplegable de categorías (asignación masiva) ─────── */
 .ycsm-bulk-cat-menu {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  left: 0;
-  min-width: 180px;
+  width: 260px;
   background: var(--ycsm-surface);
   border: 1px solid var(--ycsm-line);
-  border-radius: 10px;
-  box-shadow: 0 4px 18px rgba(0,0,0,0.14);
+  border-radius: 14px;
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
   z-index: 99999;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
-html[dark] .ycsm-bulk-cat-menu { background: var(--ycsm-surface); border-color: var(--ycsm-line); }
+html[dark] .ycsm-bulk-cat-menu {
+  background: var(--ycsm-surface);
+  border-color: var(--ycsm-line);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5);
+}
+
+.ycsm-bulk-cat-search-wrap {
+  padding: 8px 10px 6px;
+  border-bottom: 1px solid var(--ycsm-line);
+  flex-shrink: 0;
+}
+html[dark] .ycsm-bulk-cat-search-wrap { border-color: var(--ycsm-line); }
+
+.ycsm-bulk-cat-menu-header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--ycsm-line);
+  flex-shrink: 0;
+}
+html[dark] .ycsm-bulk-cat-menu-header { border-color: var(--ycsm-line); }
+
+.ycsm-bulk-cat-menu-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ycsm-text-primary);
+  font-family: 'Roboto', Arial, sans-serif;
+  letter-spacing: 0.01em;
+}
+html[dark] .ycsm-bulk-cat-menu-title { color: var(--ycsm-text-primary); }
+
+.ycsm-bulk-cat-menu-body {
+  overflow-y: auto;
+  max-height: 220px;
+  padding: 6px 0;
+}
+
 .ycsm-bulk-cat-item {
   display: block;
   width: 100%;
@@ -1562,7 +1611,6 @@ html[dark] .ycsm-bulk-cat-menu { background: var(--ycsm-surface); border-color: 
   transition: background 0.12s;
 }
 .ycsm-bulk-cat-item:hover { background: var(--ycsm-chip-hover); }
-html[dark] .ycsm-bulk-cat-item:hover { background: var(--ycsm-chip-hover); }
 
 /* ─── Botón de categoría y dropdown por canal ─────────────────── */
 .ycsm-tag-wrap {
@@ -2222,9 +2270,8 @@ ytd-rich-section-renderer.ycsm-hidden {
 /* ─── Navbar de categorías en /feed/subscriptions ────────────── */
 #ycsm-subs-nav {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  padding: 12px 24px 14px;
+  align-items: center;
+  padding: 0;
   margin-bottom: 20px;
   position: sticky;
   top: 20px;
@@ -2235,6 +2282,54 @@ ytd-rich-section-renderer.ycsm-hidden {
 html[dark] #ycsm-subs-nav {
   background: var(--yt-spec-general-background-a, #0f0f0f);
   box-shadow: 0 2px 0 var(--yt-spec-general-background-a, #0f0f0f);
+}
+
+/* Fades laterales — solo visibles cuando hay contenido fuera del viewport */
+#ycsm-subs-nav::before,
+#ycsm-subs-nav::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40px;
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#ycsm-subs-nav.ycsm-subs-can-scroll-left::before  { opacity: 1; }
+#ycsm-subs-nav.ycsm-subs-can-scroll-right::after  { opacity: 1; }
+#ycsm-subs-nav::before {
+  left: 0;
+  background: linear-gradient(to right, var(--yt-spec-general-background-a, #fff), transparent);
+}
+#ycsm-subs-nav::after {
+  right: 0;
+  background: linear-gradient(to left, var(--yt-spec-general-background-a, #fff), transparent);
+}
+html[dark] #ycsm-subs-nav::before {
+  background: linear-gradient(to right, var(--yt-spec-general-background-a, #0f0f0f), transparent);
+}
+html[dark] #ycsm-subs-nav::after {
+  background: linear-gradient(to left, var(--yt-spec-general-background-a, #0f0f0f), transparent);
+}
+
+/* Contenedor scrollable horizontal de pills (sin wrapping, estilo legend-scroll) */
+.ycsm-subs-nav-scroll {
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px 14px;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.ycsm-subs-nav-scroll::-webkit-scrollbar {
+  display: none;
 }
 
 /* Evitar que los títulos de sección queden ocultos bajo el nav sticky */
