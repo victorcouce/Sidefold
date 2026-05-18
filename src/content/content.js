@@ -88,9 +88,12 @@
      REACTIVIDAD AL STORAGE
   ═══════════════════════════════════════════════════════════════ */
 
-  YCSM.storage.onChange(() => {
+  YCSM.storage.onChange((changes) => {
     if (document.getElementById('ycsm-sidebar')) {
       YCSM.sidebar.scheduleRender();
+    }
+    if (changes.categories && location.pathname === '/feed/subscriptions') {
+      YCSM.subscriptionsFilter?.refreshNav();
     }
     // Sincronizar el botón de categorías con cualquier cambio de storage
     if (document.getElementById('ycsm-label-btn')) {

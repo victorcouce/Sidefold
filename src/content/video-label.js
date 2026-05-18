@@ -10,6 +10,7 @@
   let dropdownOpen = false;
   let currentChannelId = null;
   let currentChannelName = null;
+  let currentChannelData = null;
   let injectTimeout = null;
 
   /* ═══════════════════════════════════════════════════════════════
@@ -20,6 +21,10 @@
     const div = document.createElement('div');
     div.appendChild(document.createTextNode(String(value ?? '')));
     return div.innerHTML;
+  }
+
+  function normalizeHref(href) {
+    return (href || '').split('?')[0];
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -52,13 +57,15 @@
   async function openDropdown(anchorEl) {
     closeDropdown();
 
-    const channelData = getChannelIds();
+    const channelData = await resolveCanonicalChannelData(getChannelIds());
     if (!channelData) return;
 
+    currentChannelData = channelData;
     currentChannelId = channelData.primaryId;
     currentChannelName = channelData.name;
 
-    const { categories, channelAssignments } = await YCSM.storage.getAll();
+    const { categories } = await YCSM.storage.getAll();
+    const channelAssignments = await migrateChannelAssignments(channelData);
     const catList = Object.values(categories).sort(
       (a, b) => (a.order ?? 0) - (b.order ?? 0)
     );
@@ -197,7 +204,26 @@
   async function toggleCategory(catId, itemEl) {
     if (!currentChannelId || !catId) return;
 
-    const nowAssigned = await YCSM.storage.toggleChannelCategory(currentChannelId, catId);
+    const channelData = await resolveCanonicalChannelData(currentChannelData || getChannelIds());
+    if (!channelData) return;
+
+    const channelAssignments = await migrateChannelAssignments(channelData);
+    const assigned = channelAssignments[channelData.primaryId] || [];
+    const isAssigned = assigned.includes(catId);
+    const nowAssigned = !isAssigned;
+
+    if (nowAssigned) {
+      channelAssignments[channelData.primaryId] = [...new Set([...assigned, catId])];
+    } else {
+      const next = assigned.filter((id) => id !== catId);
+      if (next.length > 0) {
+        channelAssignments[channelData.primaryId] = next;
+      } else {
+        delete channelAssignments[channelData.primaryId];
+      }
+    }
+
+    await YCSM.storage.saveChannelAssignments(channelAssignments);
 
     itemEl.classList.toggle('ycsm-vd-item--checked', nowAssigned);
     itemEl.setAttribute('aria-selected', nowAssigned ? 'true' : 'false');
@@ -238,6 +264,73 @@
     return null;
   }
 
+  async function migrateChannelAssignments(channelData) {
+    const channelAssignments = await YCSM.storage.getChannelAssignments();
+    const primaryId = channelData.primaryId;
+    const ids = [...new Set(channelData.ids || [])].filter(Boolean);
+    const merged = new Set(channelAssignments[primaryId] || []);
+    let dirty = false;
+
+    ids.forEach((id) => {
+      const cats = channelAssignments[id] || [];
+      cats.forEach((catId) => {
+        if (!merged.has(catId)) dirty = true;
+        merged.add(catId);
+      });
+      if (id !== primaryId && channelAssignments[id]) dirty = true;
+    });
+
+    const next = [...merged];
+    if (next.length > 0) {
+      const current = channelAssignments[primaryId] || [];
+      const same =
+        current.length === next.length &&
+        current.every((catId) => merged.has(catId));
+      if (!same) dirty = true;
+      channelAssignments[primaryId] = next;
+    } else if (channelAssignments[primaryId]) {
+      delete channelAssignments[primaryId];
+      dirty = true;
+    }
+
+    ids.forEach((id) => {
+      if (id !== primaryId && channelAssignments[id]) {
+        delete channelAssignments[id];
+        dirty = true;
+      }
+    });
+
+    if (dirty) await YCSM.storage.saveChannelAssignments(channelAssignments);
+    return channelAssignments;
+  }
+
+  async function resolveCanonicalChannelData(channelData) {
+    if (!channelData) return null;
+
+    const ids = new Set(channelData.ids || []);
+    let primaryId = channelData.primaryId;
+
+    try {
+      const { channels } = await YCSM.storage.getCachedChannels();
+      const match = (channels || []).find((channel) => {
+        const channelHref = normalizeHref(channel.href);
+        return ids.has(channel.id) || (channelHref && ids.has(channelHref));
+      });
+
+      if (match?.id) {
+        ids.add(match.id);
+        if (match.href) ids.add(normalizeHref(match.href));
+        primaryId = match.id;
+      }
+    } catch (_) { /* caché no disponible; usar IDs detectados en la página */ }
+
+    return {
+      ...channelData,
+      ids: [...ids].filter(Boolean),
+      primaryId,
+    };
+  }
+
   function getChannelIds() {
     const ids = new Set();
 
@@ -259,7 +352,7 @@
       return null;
     }
 
-    const href = channelLink.getAttribute('href') || '';
+    const href = normalizeHref(channelLink.getAttribute('href') || '');
     // Intentar el nameLink para el texto visible
     const name = nameLink?.textContent?.trim() || href;
 
@@ -274,10 +367,10 @@
 
     // Si el avatar y el nameLink tienen hrefs distintos, añadir ambos
     if (nameLink && nameLink !== avatarLink) {
-      const nHref = nameLink.getAttribute('href') || '';
+      const nHref = normalizeHref(nameLink.getAttribute('href') || '');
       const nId = nHref.startsWith('/channel/')
         ? nHref.replace('/channel/', '').split('?')[0]
-        : nHref.split('?')[0];
+        : nHref;
       if (nId) ids.add(nId);
     }
 
@@ -286,20 +379,24 @@
     if (ucId) ids.add(ucId);
 
     if (ids.size === 0) return null;
-    return { ids: [...ids], name, primaryId: hrefId || [...ids][0] };
+    const idList = [...ids];
+    const primaryId = ucId || idList.find((id) => id.startsWith('UC')) || hrefId || idList[0];
+    return { ids: idList, name, primaryId };
   }
 
   async function updateButtonState() {
     const btn = document.getElementById('ycsm-label-btn');
     if (!btn) return false;
 
-    const channelData = getChannelIds();
+    const channelData = await resolveCanonicalChannelData(getChannelIds());
     if (!channelData) return false;
 
+    currentChannelData = channelData;
     currentChannelId = channelData.primaryId;
     currentChannelName = channelData.name;
 
-    const { categories, channelAssignments } = await YCSM.storage.getAll();
+    const { categories } = await YCSM.storage.getAll();
+    const channelAssignments = await migrateChannelAssignments(channelData);
 
     // Recoger todos los catIds asignados a cualquiera de los IDs del canal
     const assignedCatIds = new Set();
@@ -379,36 +476,40 @@
     return btn;
   }
 
+  function getVideoMenuButtonHost() {
+    const menuRenderer =
+      document.querySelector('ytd-watch-metadata #menu > ytd-menu-renderer') ||
+      document.querySelector('#menu > ytd-menu-renderer');
+
+    if (!menuRenderer) return null;
+
+    return (
+      menuRenderer.querySelector('#top-level-buttons-computed') ||
+      menuRenderer
+    );
+  }
+
   /* ═══════════════════════════════════════════════════════════════
      INYECCIÓN
   ═══════════════════════════════════════════════════════════════ */
 
   async function injectLabelButton() {
-    if (document.getElementById('ycsm-label-btn')) {
+    if (!location.pathname.startsWith('/watch')) return false;
+
+    const buttonHost = getVideoMenuButtonHost();
+    if (!buttonHost) return false;
+
+    const existingBtn = document.getElementById('ycsm-label-btn');
+    if (existingBtn) {
+      if (existingBtn.parentElement !== buttonHost || buttonHost.firstElementChild !== existingBtn) {
+        buttonHost.insertBefore(existingBtn, buttonHost.firstElementChild);
+      }
       scheduleButtonStateUpdate();
       return true;
     }
 
-    if (!location.pathname.startsWith('/watch')) return false;
-
-    // Selectores para el contenedor de acciones — probamos varios por compatibilidad
-    const actionsInner =
-      document.querySelector('#actions-inner') ||
-      document.querySelector('#actions.ytd-video-primary-info-renderer') ||
-      document.querySelector('ytd-watch-metadata #actions');
-
-    if (!actionsInner) return false;
-
     const btn = createLabelButton();
-
-    // Insertar antes del menú de puntos suspensivos (ytd-menu-renderer)
-    // o al final del contenedor de acciones si no hay menú
-    const menuRenderer = actionsInner.querySelector('ytd-menu-renderer');
-    if (menuRenderer) {
-      menuRenderer.parentNode.insertBefore(btn, menuRenderer);
-    } else {
-      actionsInner.appendChild(btn);
-    }
+    buttonHost.insertBefore(btn, buttonHost.firstElementChild);
 
     // Actualizar estado con reintentos (el DOM del canal puede no estar aún)
     scheduleButtonStateUpdate();

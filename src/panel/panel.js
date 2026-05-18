@@ -29,6 +29,27 @@
   let _lastSeen = {};             // channelId → ISO string (cuándo visitó el canal por última vez)
   let _panelClickHandler = null;  // referencia al listener de click global para poder eliminarlo al cerrar
 
+  async function refreshLegendOrder() {
+    if (!panelEl || panelEl.querySelector('.ycsm-manage-view')) return;
+
+    const scrollContainer = panelEl.querySelector('.ycsm-legend-scroll');
+    if (!scrollContainer) return;
+
+    const { categories } = await YCSM.storage.getAll();
+    const sortedCats = Object.values(categories).sort((a, b) => a.order - b.order);
+    const createWrap = scrollContainer.querySelector('.ycsm-legend-create-wrap');
+
+    sortedCats.forEach((cat) => {
+      const wrap = scrollContainer.querySelector(`.ycsm-pill-wrap[data-cat-id="${CSS.escape(cat.id)}"]`);
+      if (!wrap) return;
+      if (createWrap?.parentElement === scrollContainer) {
+        scrollContainer.insertBefore(wrap, createWrap);
+      } else {
+        scrollContainer.appendChild(wrap);
+      }
+    });
+  }
+
   /* ── Tooltip flotante (escapa contenedores con overflow) ── */
   function showTooltip(text, anchorEl) {
     if (!_tooltipEl) {
@@ -941,6 +962,7 @@
             ids.splice(toIdx, 0, manageDragState);
             await YCSM.storage.reorderCategories(ids);
             await renderDropdownContent();
+            await refreshLegendOrder();
           });
 
           const name = document.createElement('span');
@@ -1327,6 +1349,7 @@
       sortedCats.forEach((cat) => {
         const wrap = document.createElement('div');
         wrap.className = 'ycsm-pill-wrap';
+        wrap.dataset.catId = cat.id;
 
         const pill = document.createElement('button');
         pill.className = 'ycsm-legend-pill' + (filterCat === cat.id ? ' ycsm-legend-pill-active' : '');

@@ -179,7 +179,15 @@
 
   async function reorderCategories(orderedIds) {
     const categories = await getCategories();
-    orderedIds.forEach((id, index) => {
+    const ids = [
+      ...orderedIds.filter((id) => categories[id]),
+      ...Object.values(categories)
+        .sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
+        .map((cat) => cat.id)
+        .filter((id) => !orderedIds.includes(id)),
+    ];
+
+    ids.forEach((id, index) => {
       if (categories[id]) categories[id].order = index;
     });
     await saveCategories(categories);

@@ -238,12 +238,6 @@
     let grid = document.querySelector('ytd-rich-grid-renderer');
     if (!grid) return;
 
-    // Si la nav ya está, solo reaplicar filtro
-    if (document.getElementById('ycsm-subs-nav')) {
-      applyFilter();
-      return;
-    }
-
     // Recuperar filtro pendiente (viene de clic en sidebar)
     const pending = sessionStorage.getItem('ycsm_pending_filter');
     if (pending) {
@@ -256,6 +250,11 @@
 
     setupFilterObserver();
     applyFilter({ animate: false });
+  }
+
+  async function refreshNav() {
+    if (!isSubscriptionsPage()) return;
+    await injectSubscriptionsNav();
   }
 
   /* ─── Limpieza al salir de la página ──────────────────────── */
@@ -275,5 +274,5 @@
     applyFilter({ animate: true });
   }
 
-  window.YCSM.subscriptionsFilter = { injectSubscriptionsNav, cleanup, activateFilter };
+  window.YCSM.subscriptionsFilter = { injectSubscriptionsNav, refreshNav, cleanup, activateFilter };
 })();
