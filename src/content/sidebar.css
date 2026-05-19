@@ -1550,6 +1550,11 @@ html[dark] .ycsm-bulk-count { color: var(--ycsm-action); }
 
 /* ─── Menú desplegable de categorías (asignación masiva) ─────── */
 .ycsm-bulk-cat-menu {
+  /* Reset UA popover styles (inset:0; margin:auto; border:solid; padding:0.25em) */
+  inset: unset;
+  margin: 0;
+  padding: 0;
+  border: none;
   width: 260px;
   background: var(--ycsm-surface);
   border: 1px solid var(--ycsm-line);

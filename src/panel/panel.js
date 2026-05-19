@@ -369,7 +369,7 @@
           <div class="ycsm-bulk-actions">
             <div class="ycsm-bulk-cat-wrap">
               <button class="ycsm-bulk-cat-btn" id="ycsm-bulk-cat-btn">Asignar categoría</button>
-              <div class="ycsm-bulk-cat-menu" id="ycsm-bulk-cat-menu" hidden></div>
+              <div class="ycsm-bulk-cat-menu" id="ycsm-bulk-cat-menu" popover="manual"></div>
             </div>
 
           </div>
@@ -1196,9 +1196,9 @@
     const save = async () => {
       if (saving) return;
       const name = input.value.trim();
-      if (!name) { row.remove(); return; }
+      if (!name) { if (row.isConnected) row.remove(); return; }
       saving = true;
-      row.remove();
+      if (row.isConnected) row.remove();
       await onSave(name);
     };
 
@@ -1434,11 +1434,10 @@
       : `${visible.length} canal${visible.length !== 1 ? 'es' : ''}`;
 
     /* ── Menú de categorías para asignación masiva ── */
-    // El menú puede estar en body si estaba abierto: devolverlo al wrapper antes de limpiar
     const catMenu = document.getElementById('ycsm-bulk-cat-menu');
-    const _catWrap = panelEl.querySelector('.ycsm-bulk-cat-wrap');
-    if (catMenu && _catWrap && catMenu.parentNode !== _catWrap) _catWrap.appendChild(catMenu);
-    catMenu.innerHTML = '';
+    // Cerrar el popover si está abierto antes de reconstruir
+    if (catMenu && catMenu.matches(':popover-open')) catMenu.hidePopover();
+    if (catMenu) catMenu.innerHTML = '';
 
     // Header (mismo patrón que ycsm-manage-dropdown)
     const menuHeader = document.createElement('div');
@@ -1499,8 +1498,7 @@
       item.textContent = cat.name;
       item.addEventListener('click', (e) => {
         e.stopPropagation();
-        catMenu.hidden = true;
-        if (_catWrap && catMenu.parentNode !== _catWrap) _catWrap.appendChild(catMenu);
+        if (catMenu.matches(':popover-open')) catMenu.hidePopover();
         bulkAssignCategory(cat.id);
       });
       menuBody.appendChild(item);
@@ -2196,43 +2194,37 @@
       else enterSelectionMode();
     });
 
-    // Asignación masiva: toggle menú de categorías (fixed para escapar overflow:hidden del panel)
+    // Asignación masiva: toggle menú de categorías (Popover API → top layer, siempre encima de overflow:hidden)
     panelEl.querySelector('#ycsm-bulk-cat-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       const menu = document.getElementById('ycsm-bulk-cat-menu');
       if (!menu) return;
-      const catWrap = panelEl.querySelector('.ycsm-bulk-cat-wrap');
-      if (!menu.hidden) {
-        menu.hidden = true;
-        if (catWrap && menu.parentNode !== catWrap) catWrap.appendChild(menu);
-        return;
-      }
-      // Calcular posición fixed para escapar de overflow:hidden
+      // Cerrar si ya está abierto
+      if (menu.matches(':popover-open')) { menu.hidePopover(); return; }
+      // Calcular posición: alinear borde derecho del menú con borde derecho del botón
       const btnRect = e.currentTarget.getBoundingClientRect();
       const MENU_W = 260;
       const MENU_MAX_H = 360;
       const GAP = 6;
-      let left = btnRect.left;
-      if (left + MENU_W > window.innerWidth - 8) left = window.innerWidth - MENU_W - 8;
+      let left = btnRect.right - MENU_W;
       if (left < 8) left = 8;
+      if (left + MENU_W > window.innerWidth - 8) left = window.innerWidth - MENU_W - 8;
       const spaceBelow = window.innerHeight - btnRect.bottom - GAP;
       const spaceAbove = btnRect.top - GAP;
       const top = (spaceBelow >= MENU_MAX_H || spaceBelow >= spaceAbove)
         ? btnRect.bottom + GAP
         : btnRect.top - GAP - Math.min(MENU_MAX_H, spaceAbove);
-      menu.style.cssText = `position:fixed;top:${top}px;left:${left}px;bottom:auto;right:auto;width:${MENU_W}px`;
-      document.body.appendChild(menu);
-      menu.hidden = false;
+      // Inline style: sobreescribe UA popover (inset:0; margin:auto) con nuestra posición
+      menu.style.cssText = `position:fixed;top:${top}px;left:${left}px;bottom:auto;right:auto;width:${MENU_W}px;margin:0`;
+      menu.showPopover();
       // Limpiar búsqueda y enfocar input
       const si = menu.querySelector('.ycsm-bulk-cat-search-input');
       if (si) { si.value = ''; si.dispatchEvent(new Event('input')); setTimeout(() => si.focus(), 0); }
     });
     _panelClickHandler = (e) => {
       const menu = document.getElementById('ycsm-bulk-cat-menu');
-      if (menu && !menu.hidden && !menu.contains(e.target) && !e.target.closest('#ycsm-bulk-cat-btn')) {
-        menu.hidden = true;
-        const catWrap = panelEl?.querySelector('.ycsm-bulk-cat-wrap');
-        if (catWrap && menu.parentNode !== catWrap) catWrap.appendChild(menu);
+      if (menu && menu.matches(':popover-open') && !menu.contains(e.target) && !e.target.closest('#ycsm-bulk-cat-btn')) {
+        menu.hidePopover();
       }
       // Cerrar dropdowns de categoría (pueden estar en body como fixed)
       // Solo cerrar si no hay cambios pendientes de confirmar
