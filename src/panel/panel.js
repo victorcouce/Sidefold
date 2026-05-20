@@ -18,7 +18,10 @@
   let panelEl = null;
   let allChannels = [];
   let filterText = '';
-  let filterCat = null;   // ID de categoría activa para filtrar, o null
+  let filterCat = null;   // ID de categoría activa para filtrar, o null (compat)
+  let viewMode = 'all';   // 'all' | 'recent' | 'uncategorized' | <catId>
+  let layoutMode = 'list'; // 'list' | 'grid'
+  let isManaging = false;  // sidebar manage/edit mode
   let sortBy = 'activity'; // 'activity' | 'name'
   let selectedIds = new Set(); // IDs de canales seleccionados
   const _dateCache = new Map(); // channelId → ISO date string | null
@@ -332,70 +335,107 @@
     overlay.innerHTML = `
       <div class="ycsm-panel-backdrop" aria-hidden="true"></div>
       <div class="ycsm-panel-box">
-        <div class="ycsm-panel-head">
-          <h2>${escapeHtml(t('organizeSubscriptionsTitle'))}</h2>
-          <button class="ycsm-btn-icon ycsm-panel-x" aria-label="${escapeHtml(t('closePanel'))}">✕</button>
-        </div>
-        <div class="ycsm-panel-legend" aria-label="${escapeHtml(t('availableCategories'))}"></div>
-        <div class="ycsm-panel-body">
-          <div class="ycsm-panel-toolbar">
-            <div class="ycsm-yt-search-container">
-              <div class="ycsm-yt-search-box">
-                <svg class="ycsm-yt-search-left-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5L20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-                <input
-                  class="ycsm-yt-search-input"
-                  type="text"
-                  placeholder="${escapeHtml(t('searchChannelPlaceholder'))}"
-                  aria-label="${escapeHtml(t('searchChannelByName'))}"
-                  autocomplete="off"
-                >
-                <button class="ycsm-yt-search-clear" aria-label="${escapeHtml(t('clearSearch'))}" hidden>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg>
-                </button>
-              </div>
-              <button class="ycsm-yt-search-btn" aria-label="${escapeHtml(t('search'))}">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" stroke-width="2"/><path d="M15.5 15.5L20 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
-              </button>
-            </div>
-            <div class="ycsm-sort-wrap">
-              <button class="ycsm-sort-btn" id="ycsm-sort-btn" aria-haspopup="listbox" aria-expanded="false" aria-label="Ordenar canales">
-                <span class="ycsm-sort-label" id="ycsm-sort-label">${escapeHtml(t('recent'))}</span>
-                <svg class="ycsm-sort-chevron" xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-              </button>
-              <div class="ycsm-sort-menu" id="ycsm-sort-menu" role="listbox" aria-label="Ordenar canales" hidden>
-                <button class="ycsm-sort-item" role="option" data-value="activity" aria-selected="true">
-                  <svg class="ycsm-sort-item-check" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-                  ${escapeHtml(t('recent'))}
-                </button>
-                <button class="ycsm-sort-item" role="option" data-value="name" aria-selected="false">
-                  <svg class="ycsm-sort-item-check" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
-                  A → Z
-                </button>
-              </div>
-            </div>
+
+        <!-- Header -->
+        <div class="ycsm-modal-head">
+          <div class="ycsm-modal-head-info">
+            <h2 class="ycsm-modal-title">${escapeHtml(t('organizeSubscriptionsTitle'))}</h2>
+            <p class="ycsm-modal-sub">Agrupa tus canales en categorías para filtrar tu feed.</p>
           </div>
-          <div class="ycsm-panel-channels" role="list" aria-label="${escapeHtml(t('subscribedChannelsList'))}"></div>
+          <button class="ycsm-icon-btn ycsm-panel-x" aria-label="${escapeHtml(t('closePanel'))}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
         </div>
-        <div class="ycsm-panel-bulk" id="ycsm-panel-bulk" hidden>
-          <label class="ycsm-bulk-select-all">
-            <input type="checkbox" id="ycsm-bulk-select-all-input" aria-label="${escapeHtml(t('all'))}">
-            <span class="ycsm-bulk-select-all-label">${escapeHtml(t('all'))}</span>
-          </label>
-          <span class="ycsm-bulk-count" id="ycsm-bulk-count"></span>
-          <div class="ycsm-bulk-actions">
-            <div class="ycsm-bulk-cat-wrap">
-              <button class="ycsm-bulk-cat-btn" id="ycsm-bulk-cat-btn">${escapeHtml(t('assignCategory'))}</button>
-              <div class="ycsm-bulk-cat-menu" id="ycsm-bulk-cat-menu" popover="manual"></div>
+
+        <!-- Body: sidebar + main pane -->
+        <div class="ycsm-modal-body">
+
+          <!-- Sidebar -->
+          <aside class="ycsm-new-sidebar" id="ycsm-panel-sidebar">
+            <nav class="ycsm-side-nav" id="ycsm-side-system-nav">
+              <button class="ycsm-side-item ycsm-side-item-system is-active" data-view="all">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+                <span class="ycsm-side-name">Todas</span>
+                <span class="ycsm-side-count" data-count="all">0</span>
+              </button>
+              <button class="ycsm-side-item ycsm-side-item-system" data-view="recent">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 12 16 12 14 15 10 15 8 12 2 12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></svg>
+                <span class="ycsm-side-name">Recientes</span>
+                <span class="ycsm-side-count" data-count="recent">0</span>
+              </button>
+              <button class="ycsm-side-item ycsm-side-item-system" data-view="uncategorized">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+                <span class="ycsm-side-name">Sin categorizar</span>
+                <span class="ycsm-side-count" data-count="uncategorized">0</span>
+              </button>
+            </nav>
+
+            <div class="ycsm-side-section">
+              <div class="ycsm-side-section-head">
+                <span>Mis categorías</span>
+                <button class="ycsm-side-edit-toggle" id="ycsm-side-edit-toggle">Editar</button>
+              </div>
+              <nav class="ycsm-side-nav" id="ycsm-side-cats-nav"></nav>
+              <button class="ycsm-side-item ycsm-side-add" id="ycsm-side-add-cat">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                <span class="ycsm-side-name">Nueva categoría</span>
+              </button>
             </div>
-            <button class="ycsm-bulk-clear-btn" id="ycsm-bulk-clear-btn" aria-label="${escapeHtml(t('cancel'))}">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.47 2 2 6.47 2 12s4.47 10 10 10 10-4.47 10-10S17.53 2 12 2zm5 13.59L15.59 17 12 13.41 8.41 17 7 15.59 10.59 12 7 8.41 8.41 7 12 10.59 15.59 7 17 8.41 13.41 12 17 15.59z"/></svg>
+          </aside>
+
+          <!-- Main pane -->
+          <main class="ycsm-main-pane">
+            <div class="ycsm-new-toolbar">
+              <div class="ycsm-toolbar-title">
+                <h2 class="ycsm-toolbar-view-name" id="ycsm-toolbar-view-name">Todas las suscripciones</h2>
+                <span class="ycsm-toolbar-count" id="ycsm-toolbar-count"></span>
+              </div>
+              <div class="ycsm-toolbar-controls">
+                <div class="ycsm-new-search" id="ycsm-new-search">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="20" y1="20" x2="16.65" y2="16.65"/></svg>
+                  <input class="ycsm-new-search-input" type="text" placeholder="Buscar canal…" autocomplete="off" aria-label="${escapeHtml(t('searchChannelByName'))}">
+                  <button class="ycsm-new-search-clear" aria-label="${escapeHtml(t('clearSearch'))}" hidden>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  </button>
+                </div>
+                <div class="ycsm-new-sort-wrap">
+                  <select class="ycsm-new-sort-select" id="ycsm-new-sort-select">
+                    <option value="activity">${escapeHtml(t('recent'))}</option>
+                    <option value="name">A → Z</option>
+                  </select>
+                </div>
+                <div class="ycsm-view-toggle" role="tablist">
+                  <button class="ycsm-view-btn ${layoutMode === 'list' ? 'is-active' : ''}" data-layout="list" title="Vista lista" aria-label="Vista lista">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+                  </button>
+                  <button class="ycsm-view-btn ${layoutMode === 'grid' ? 'is-active' : ''}" data-layout="grid" title="Vista cuadrícula" aria-label="Vista cuadrícula">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="ycsm-channel-area" id="ycsm-channel-area" role="list" aria-label="${escapeHtml(t('subscribedChannelsList'))}">
+              <div class="ycsm-panel-channels" role="list" aria-label="${escapeHtml(t('subscribedChannelsList'))}"></div>
+            </div>
+          </main>
+        </div>
+
+        <!-- Floating selection bar -->
+        <div class="ycsm-new-select-bar" id="ycsm-new-select-bar">
+          <button class="ycsm-select-bar-clear" id="ycsm-select-bar-clear" aria-label="Limpiar selección">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <span class="ycsm-select-bar-count" id="ycsm-select-bar-count"></span>
+          <div class="ycsm-bulk-cat-wrap">
+            <button class="ycsm-select-bar-assign-btn" id="ycsm-bulk-cat-btn">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>
+              Asignar categoría
             </button>
+            <div class="ycsm-bulk-cat-menu" id="ycsm-bulk-cat-menu" popover="manual"></div>
           </div>
         </div>
-        <div class="ycsm-panel-foot">
-          <span class="ycsm-panel-count" aria-live="polite"></span>
-          <button class="ycsm-panel-close-btn">${escapeHtml(t('close'))}</button>
-        </div>
+
       </div>
     `;
 
@@ -412,31 +452,21 @@
 
   function updateBulkBar() {
     if (!panelEl) return;
-    const bar = panelEl.querySelector('#ycsm-panel-bulk');
+    const bar = panelEl.querySelector('#ycsm-new-select-bar');
     if (!bar) return;
     const n = selectedIds.size;
     panelEl.querySelector('.ycsm-panel-box')?.classList.toggle('ycsm-selecting', n > 0);
-    if (n === 0) {
-      bar.hidden = true;
-      return;
-    }
-    bar.hidden = false;
-    const countEl = panelEl.querySelector('#ycsm-bulk-count');
-    if (countEl) countEl.textContent = count('selectedChannelCount', n);
-    const visibleIds = [...panelEl.querySelectorAll('.ycsm-panel-card')]
-      .map((c) => c.dataset.channelId).filter(Boolean);
-    const allChecked = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.has(id));
-    const someChecked = visibleIds.some((id) => selectedIds.has(id));
-    const saInput = panelEl.querySelector('#ycsm-bulk-select-all-input');
-    if (saInput) {
-      saInput.checked = allChecked;
-      saInput.indeterminate = !allChecked && someChecked;
+    bar.classList.toggle('is-visible', n > 0);
+    if (n === 0) return;
+    const countEl = panelEl.querySelector('#ycsm-select-bar-count');
+    if (countEl) {
+      countEl.innerHTML = `<strong>${n}</strong> ${n === 1 ? 'canal seleccionado' : 'canales seleccionados'}`;
     }
   }
 
   function clearSelection() {
     selectedIds.clear();
-    panelEl?.querySelectorAll('.ycsm-panel-card').forEach((c) => c.classList.remove('ycsm-card-selected'));
+    panelEl?.querySelectorAll('.ycsm-panel-card, .ycsm-channel-row').forEach((c) => c.classList.remove('ycsm-card-selected'));
     updateBulkBar();
   }
 
@@ -597,6 +627,9 @@
     const body    = panelEl.querySelector('.ycsm-panel-body');
     const foot    = panelEl.querySelector('.ycsm-panel-foot');
     const bulk    = panelEl.querySelector('.ycsm-panel-bulk');
+
+    // Legacy function — new panel HTML doesn't have these elements
+    if (!head || !body) return;
 
     const PENCIL_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
     const TRASH_SVG  = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>`;
@@ -1415,6 +1448,446 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════
+     SIDEBAR
+  ═══════════════════════════════════════════════════════════════ */
+
+  function catColorFromHue(hue) {
+    return `oklch(0.72 0.16 ${hue})`;
+  }
+  function catBgFromHue(hue, alpha = 0.16) {
+    return `oklch(0.72 0.16 ${hue} / ${alpha})`;
+  }
+
+  async function renderSidebar() {
+    if (!panelEl) return;
+    const sideNav = panelEl.querySelector('#ycsm-side-cats-nav');
+    if (!sideNav) return;
+
+    const { categories, channelAssignments } = await YCSM.storage.getAll();
+    const sortedCats = Object.values(categories).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    // Update system filter counts
+    const totalCount = allChannels.length;
+    const recentCount = allChannels.filter((ch) => {
+      const d = _dateCache.get(ch.id);
+      if (!d) return false;
+      return (Date.now() - new Date(d).getTime()) < 2 * 24 * 60 * 60 * 1000;
+    }).length;
+    const uncatCount = allChannels.filter((ch) => {
+      const cats = channelAssignments[ch.id] || [];
+      return cats.length === 0;
+    }).length;
+
+    const countAll = panelEl.querySelector('[data-count="all"]');
+    const countRecent = panelEl.querySelector('[data-count="recent"]');
+    const countUncat = panelEl.querySelector('[data-count="uncategorized"]');
+    if (countAll) countAll.textContent = totalCount;
+    if (countRecent) countRecent.textContent = recentCount;
+    if (countUncat) countUncat.textContent = uncatCount;
+
+    // Update active state for system items
+    panelEl.querySelectorAll('#ycsm-side-system-nav .ycsm-side-item').forEach((btn) => {
+      btn.classList.toggle('is-active', btn.dataset.view === viewMode);
+    });
+
+    // Render category items
+    sideNav.innerHTML = '';
+    sortedCats.forEach((cat) => {
+      const count = allChannels.filter((ch) => (channelAssignments[ch.id] || []).includes(cat.id)).length;
+      const color = catColorFromHue(cat.hue ?? 220);
+
+      const item = document.createElement('div');
+      item.className = `ycsm-side-item${viewMode === cat.id ? ' is-active' : ''}${isManaging ? ' is-managing' : ''}`;
+      item.dataset.catId = cat.id;
+
+      if (isManaging) {
+        item.innerHTML = `
+          <span class="ycsm-side-drag" title="Arrastrar">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="6" r="1.2" fill="currentColor"/><circle cx="9" cy="12" r="1.2" fill="currentColor"/><circle cx="9" cy="18" r="1.2" fill="currentColor"/><circle cx="15" cy="6" r="1.2" fill="currentColor"/><circle cx="15" cy="12" r="1.2" fill="currentColor"/><circle cx="15" cy="18" r="1.2" fill="currentColor"/></svg>
+          </span>
+          <span class="ycsm-side-dot" style="background:${escapeHtml(color)}"></span>
+          <span class="ycsm-side-name">${escapeHtml(cat.name)}</span>
+          <span class="ycsm-side-actions">
+            <button class="ycsm-side-action-btn" data-action="rename" data-cat-id="${escapeHtml(cat.id)}" title="Renombrar">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4z"/></svg>
+            </button>
+            <button class="ycsm-side-action-btn" data-action="delete" data-cat-id="${escapeHtml(cat.id)}" title="Eliminar">
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/></svg>
+            </button>
+          </span>
+        `;
+
+        item.querySelector('[data-action="rename"]').addEventListener('click', (e) => {
+          e.stopPropagation();
+          startSidebarRename(cat, item);
+        });
+        item.querySelector('[data-action="delete"]').addEventListener('click', async (e) => {
+          e.stopPropagation();
+          await YCSM.storage.deleteCategory(cat.id);
+          if (viewMode === cat.id) viewMode = 'all';
+          if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
+          await renderSidebar();
+          await renderPanelContent();
+        });
+      } else {
+        item.innerHTML = `
+          <span class="ycsm-side-dot" style="background:${escapeHtml(color)}"></span>
+          <span class="ycsm-side-name">${escapeHtml(cat.name)}</span>
+          <span class="ycsm-side-count">${count}</span>
+        `;
+        item.addEventListener('click', () => {
+          viewMode = cat.id;
+          filterCat = cat.id;
+          renderSidebar();
+          renderPanelContent();
+        });
+      }
+
+      sideNav.appendChild(item);
+    });
+
+    if (sortedCats.length === 0 && !isManaging) {
+      const empty = document.createElement('p');
+      empty.className = 'ycsm-side-empty';
+      empty.textContent = 'Sin categorías aún.';
+      sideNav.appendChild(empty);
+    }
+  }
+
+  function startSidebarRename(cat, itemEl) {
+    const nameSpan = itemEl.querySelector('.ycsm-side-name');
+    if (!nameSpan) return;
+    const input = document.createElement('input');
+    input.className = 'ycsm-side-rename-input';
+    input.value = cat.name;
+    input.maxLength = 30;
+    nameSpan.replaceWith(input);
+    input.focus();
+    input.select();
+
+    const commit = async () => {
+      const n = input.value.trim();
+      if (n && n !== cat.name) {
+        await YCSM.storage.updateCategory(cat.id, { name: n });
+        if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
+      }
+      await renderSidebar();
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); await commit(); }
+      if (e.key === 'Escape') { input.value = cat.name; await commit(); }
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
+     LIST VIEW — renders channels as rows with inline chips
+  ═══════════════════════════════════════════════════════════════ */
+
+  function buildCatChip(cat, channelId, onRemove) {
+    const color = catColorFromHue(cat.hue ?? 220);
+    const bg = catBgFromHue(cat.hue ?? 220, 0.16);
+    const borderBg = catBgFromHue(cat.hue ?? 220, 0.35);
+
+    const chip = document.createElement('span');
+    chip.className = 'ycsm-cat-chip';
+    chip.style.cssText = `display:inline-flex;align-items:center;gap:6px;padding:3px 4px 3px 9px;border-radius:999px;background:${bg};color:${color};font-size:12px;font-weight:500;line-height:1.2;border:1px solid ${borderBg}`;
+
+    const dot = document.createElement('span');
+    dot.style.cssText = `width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0`;
+    chip.appendChild(dot);
+
+    const label = document.createElement('span');
+    label.textContent = cat.name;
+    chip.appendChild(label);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'ycsm-chip-remove';
+    removeBtn.setAttribute('aria-label', `Quitar ${cat.name}`);
+    removeBtn.style.cssText = 'background:transparent;border:none;color:inherit;opacity:0.6;display:flex;align-items:center;justify-content:center;width:16px;height:16px;border-radius:50%;cursor:pointer;padding:0;flex-shrink:0';
+    removeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+    removeBtn.addEventListener('click', (e) => { e.stopPropagation(); onRemove(); });
+    chip.appendChild(removeBtn);
+
+    return chip;
+  }
+
+  function buildChannelRow(ch, categories, channelAssignments, catColorFn) {
+    const assignedCatIds = channelAssignments[ch.id] || [];
+    const assignedCats = assignedCatIds.map((id) => categories[id]).filter(Boolean);
+
+    const row = document.createElement('div');
+    row.className = `ycsm-channel-row${selectedIds.has(ch.id) ? ' ycsm-card-selected' : ''}`;
+    row.dataset.channelId = ch.id;
+
+    // Checkbox
+    const checkCell = document.createElement('label');
+    checkCell.className = 'ycsm-row-check';
+    checkCell.addEventListener('click', (e) => e.stopPropagation());
+    const checkInput = document.createElement('input');
+    checkInput.type = 'checkbox';
+    checkInput.checked = selectedIds.has(ch.id);
+    checkInput.addEventListener('change', () => {
+      if (checkInput.checked) { selectedIds.add(ch.id); row.classList.add('ycsm-card-selected'); }
+      else { selectedIds.delete(ch.id); row.classList.remove('ycsm-card-selected'); }
+      updateBulkBar();
+    });
+    const checkBox = document.createElement('span');
+    checkBox.className = 'ycsm-check-box';
+    if (selectedIds.has(ch.id)) checkBox.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>`;
+    checkCell.appendChild(checkInput);
+    checkCell.appendChild(checkBox);
+    row.appendChild(checkCell);
+
+    // Avatar
+    const avatarWrap = document.createElement('div');
+    avatarWrap.className = 'ycsm-row-avatar';
+    const avatar = document.createElement('div');
+    avatar.className = 'ycsm-avatar-circle';
+    const initial = ch.name ? ch.name[0].toUpperCase() : '?';
+    if (ch.avatar) {
+      const img = document.createElement('img');
+      img.src = ch.avatar;
+      img.alt = '';
+      img.loading = 'lazy';
+      avatar.appendChild(img);
+    } else {
+      avatar.textContent = initial;
+      avatar.style.background = `hsl(${(ch.name.charCodeAt(0) * 47) % 360} 40% 40%)`;
+    }
+    avatarWrap.appendChild(avatar);
+    row.appendChild(avatarWrap);
+
+    // Meta (name + last seen)
+    const meta = document.createElement('div');
+    meta.className = 'ycsm-row-meta';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'ycsm-row-name';
+    nameEl.textContent = ch.name;
+    meta.appendChild(nameEl);
+    row.appendChild(meta);
+
+    // Category chips + add button
+    const catsCell = document.createElement('div');
+    catsCell.className = 'ycsm-row-cats';
+
+    assignedCats.slice(0, 3).forEach((cat) => {
+      const chip = buildCatChip(cat, ch.id, async () => {
+        await YCSM.storage.unassignChannel(ch.id, cat.id);
+        if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
+        await renderSidebar();
+        await renderPanelContent();
+      });
+      catsCell.appendChild(chip);
+    });
+    if (assignedCats.length > 3) {
+      const more = document.createElement('span');
+      more.className = 'ycsm-chip-more';
+      more.textContent = `+${assignedCats.length - 3}`;
+      catsCell.appendChild(more);
+    }
+
+    // + Categorizar button (same picker as before)
+    const addWrap = document.createElement('div');
+    addWrap.className = 'ycsm-add-cat-wrap';
+    const addBtn = document.createElement('button');
+    addBtn.className = `ycsm-add-cat-btn${assignedCats.length === 0 ? ' ycsm-add-cat-btn-labeled' : ''}`;
+    addBtn.setAttribute('aria-label', 'Asignar categoría');
+    addBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>${assignedCats.length === 0 ? '<span>Categorizar</span>' : ''}`;
+
+    const tagDropdown = document.createElement('div');
+    tagDropdown.className = 'ycsm-tag-dropdown';
+    tagDropdown.hidden = true;
+
+    addBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const isOpen = !tagDropdown.hidden;
+      // Close all other dropdowns
+      document.querySelectorAll('.ycsm-tag-dropdown:not([hidden])').forEach((d) => { d.hidden = true; });
+      if (!isOpen) {
+        tagDropdown.hidden = false;
+        const btnRect = addBtn.getBoundingClientRect();
+        const DROPDOWN_W = 280;
+        const GAP = 6;
+        let left = btnRect.left;
+        if (left + DROPDOWN_W > window.innerWidth - 8) left = window.innerWidth - DROPDOWN_W - 8;
+        if (left < 8) left = 8;
+        const spaceBelow = window.innerHeight - btnRect.bottom - GAP;
+        const spaceAbove = btnRect.top - GAP;
+        const openBelow = spaceBelow >= 200 || spaceBelow >= spaceAbove;
+        tagDropdown.style.position = 'fixed';
+        tagDropdown.style.left = left + 'px';
+        tagDropdown.style.width = DROPDOWN_W + 'px';
+        if (openBelow) { tagDropdown.style.top = (btnRect.bottom + GAP) + 'px'; tagDropdown.style.bottom = ''; }
+        else { tagDropdown.style.top = ''; tagDropdown.style.bottom = (window.innerHeight - btnRect.top + GAP) + 'px'; }
+        document.body.appendChild(tagDropdown);
+        buildInlineTagDropdown(tagDropdown, ch, categories, channelAssignments);
+        const si = tagDropdown.querySelector('.ycsm-dd-search-input');
+        if (si) setTimeout(() => si.focus(), 0);
+      }
+    });
+
+    addWrap.appendChild(addBtn);
+    addWrap.appendChild(tagDropdown);
+    catsCell.appendChild(addWrap);
+    row.appendChild(catsCell);
+
+    // Click row → open channel
+    row.addEventListener('click', (e) => {
+      if (e.target.closest('.ycsm-row-check, .ycsm-add-cat-wrap, .ycsm-cat-chip')) return;
+      const url = ch.href ? `https://www.youtube.com${ch.href}` : `https://www.youtube.com/channel/${ch.id}`;
+      window.open(url, '_blank', 'noopener');
+    });
+
+    return row;
+  }
+
+  function buildInlineTagDropdown(dropdown, ch, categories, channelAssignments) {
+    dropdown.innerHTML = '';
+    const catList = Object.values(categories).sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const assigned = channelAssignments[ch.id] || [];
+
+    const header = document.createElement('div');
+    header.className = 'ycsm-manage-dropdown-header';
+    const title = document.createElement('span');
+    title.className = 'ycsm-manage-dropdown-title';
+    title.textContent = 'Asignar categoría';
+    header.appendChild(title);
+    dropdown.appendChild(header);
+
+    const searchSection = document.createElement('div');
+    searchSection.className = 'ycsm-dd-header';
+    const searchRow = document.createElement('div');
+    searchRow.className = 'ycsm-dd-search-row';
+    const searchBox = document.createElement('div');
+    searchBox.className = 'ycsm-dd-search-box';
+    const searchInput = document.createElement('input');
+    searchInput.className = 'ycsm-dd-search-input';
+    searchInput.type = 'text';
+    searchInput.placeholder = t('searchCategoryPlaceholder');
+    searchInput.autocomplete = 'off';
+    searchBox.appendChild(searchInput);
+    searchRow.appendChild(searchBox);
+
+    const createBtn = document.createElement('button');
+    createBtn.className = 'ycsm-dd-create-btn';
+    createBtn.textContent = '+';
+    searchRow.appendChild(createBtn);
+    searchSection.appendChild(searchRow);
+    const createArea = document.createElement('div');
+    createArea.className = 'ycsm-dd-create-area';
+    searchSection.appendChild(createArea);
+    dropdown.appendChild(searchSection);
+
+    function renderItems(filter) {
+      let listEl = dropdown.querySelector('.ycsm-dd-list');
+      if (listEl) listEl.remove();
+      let emptyEl = dropdown.querySelector('.ycsm-tag-empty');
+      if (emptyEl) emptyEl.remove();
+
+      const q = (filter || '').trim().toLowerCase();
+      const currentAssigned = channelAssignments[ch.id] || [];
+      const filtered = catList.filter((c) => !q || normalizeSearch(c.name).includes(normalizeSearch(q)));
+
+      if (filtered.length > 0) {
+        listEl = document.createElement('div');
+        listEl.className = 'ycsm-dd-list';
+        filtered.forEach((cat) => {
+          const isOn = currentAssigned.includes(cat.id);
+          const color = catColorFromHue(cat.hue ?? 220);
+          const itemEl = document.createElement('button');
+          itemEl.className = `ycsm-dd-item${isOn ? ' ycsm-dd-item-assigned' : ''}`;
+          itemEl.dataset.catid = cat.id;
+          itemEl.innerHTML = `
+            <span style="width:10px;height:10px;border-radius:50%;background:${escapeHtml(color)};flex-shrink:0;display:inline-block"></span>
+            <span class="ycsm-dd-item-name" style="flex:1">${escapeHtml(cat.name)}</span>
+            <span class="ycsm-dd-item-check ${isOn ? 'ycsm-dd-item-check-on' : 'ycsm-dd-item-check-off'}">
+              ${isOn ? `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor"/><polyline points="9 11 12 14 22 4" stroke="#fff" stroke-width="2.5"/></svg>` : `<svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>`}
+            </span>
+          `;
+          itemEl.addEventListener('click', async (e) => {
+            e.stopPropagation();
+            if (isOn) {
+              await YCSM.storage.unassignChannel(ch.id, cat.id);
+              if (channelAssignments[ch.id]) channelAssignments[ch.id] = channelAssignments[ch.id].filter((id) => id !== cat.id);
+            } else {
+              await YCSM.storage.assignChannel(ch.id, cat.id);
+              if (!channelAssignments[ch.id]) channelAssignments[ch.id] = [];
+              if (!channelAssignments[ch.id].includes(cat.id)) channelAssignments[ch.id].push(cat.id);
+            }
+            if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
+            await renderSidebar();
+            await renderPanelContent();
+            dropdown.hidden = true;
+            if (dropdown.parentElement === document.body) document.body.removeChild(dropdown);
+          });
+          listEl.appendChild(itemEl);
+        });
+        dropdown.appendChild(listEl);
+      } else {
+        const empty = document.createElement('div');
+        empty.className = 'ycsm-tag-empty';
+        empty.textContent = q ? t('noResults') : t('noCategoriesCreated');
+        dropdown.appendChild(empty);
+      }
+    }
+
+    renderItems('');
+
+    searchInput.addEventListener('input', (e) => { e.stopPropagation(); renderItems(e.target.value); });
+    searchInput.addEventListener('click', (e) => e.stopPropagation());
+
+    createBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (createArea.querySelector('.ycsm-legend-new-pill')) { createArea.querySelector('.ycsm-new-pill-input')?.focus(); return; }
+      createArea.innerHTML = '';
+      const pillEl = document.createElement('div');
+      pillEl.className = 'ycsm-legend-new-pill ycsm-dd-new-pill';
+      const nameInput = document.createElement('input');
+      nameInput.className = 'ycsm-new-pill-input';
+      nameInput.type = 'text';
+      nameInput.placeholder = t('newCategory') + '…';
+      nameInput.maxLength = 50;
+      nameInput.autocomplete = 'off';
+      const cancelInlineBtn = document.createElement('button');
+      cancelInlineBtn.type = 'button';
+      cancelInlineBtn.className = 'ycsm-new-pill-cancel';
+      cancelInlineBtn.setAttribute('aria-label', t('cancel'));
+      cancelInlineBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+      pillEl.appendChild(nameInput);
+      pillEl.appendChild(cancelInlineBtn);
+      createArea.appendChild(pillEl);
+      nameInput.focus();
+      let saving = false;
+      const handleCreate = async () => {
+        if (saving) return;
+        const name = nameInput.value.trim();
+        if (!name) { createArea.innerHTML = ''; return; }
+        saving = true;
+        pillEl.remove();
+        const newCat = await YCSM.storage.addCategory(name);
+        if (newCat) {
+          await YCSM.storage.assignChannel(ch.id, newCat.id);
+          if (!channelAssignments[ch.id]) channelAssignments[ch.id] = [];
+          channelAssignments[ch.id].push(newCat.id);
+        }
+        if (document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
+        await renderSidebar();
+        await renderPanelContent();
+        dropdown.hidden = true;
+        if (dropdown.parentElement === document.body) document.body.removeChild(dropdown);
+      };
+      cancelInlineBtn.addEventListener('mousedown', (ev) => { ev.preventDefault(); createArea.innerHTML = ''; });
+      nameInput.addEventListener('blur', () => handleCreate());
+      nameInput.addEventListener('keydown', (ev) => {
+        ev.stopPropagation();
+        if (ev.key === 'Enter') { ev.preventDefault(); handleCreate(); }
+        if (ev.key === 'Escape') createArea.innerHTML = '';
+      });
+    });
+  }
+
+  /* ═══════════════════════════════════════════════════════════════
      RENDER DEL CONTENIDO
   ═══════════════════════════════════════════════════════════════ */
 
@@ -1426,118 +1899,8 @@
     const { categories, channelAssignments } = await YCSM.storage.getAll();
     const sortedCats = Object.values(categories).sort((a, b) => a.order - b.order);
 
-    /* ── Leyenda ── */
-    const legend = panelEl.querySelector('.ycsm-panel-legend');
-    if (!legend) return;
-
-    // Desconectar observer previo antes de re-renderizar
-    if (_pillsOverflowObserver) {
-      _pillsOverflowObserver.disconnect();
-      _pillsOverflowObserver = null;
-    }
-
-    legend.innerHTML = '';
-
-    // Contenedor scrollable para las pills
-    const scrollContainer = document.createElement('div');
-    scrollContainer.className = 'ycsm-legend-scroll';
-
-    // Contenedor fijo derecha: botón "+" + botón gestionar
-    const actionsWrap = document.createElement('div');
-    actionsWrap.className = 'ycsm-legend-actions';
-
-    const createWrap = document.createElement('div');
-    createWrap.className = 'ycsm-legend-create-wrap';
-
-    const createPill = document.createElement('button');
-    createPill.type = 'button';
-    createPill.className = 'ycsm-legend-create-pill';
-    createPill.setAttribute('aria-label', 'Añadir categoría');
-    createPill.textContent = '+';
-    createPill.addEventListener('mouseenter', () => showTooltip('Añadir categoría', createPill));
-    createPill.addEventListener('mouseleave', hideTooltip);
-    createPill.addEventListener('click', (e) => {
-      e.stopPropagation();
-      hideTooltip();
-      insertInlineNewPill(scrollContainer, createWrap);
-    });
-    createWrap.appendChild(createPill);
-
-    // Botón gestionar categorías (sliders icon)
-    const manageWrap = document.createElement('div');
-    manageWrap.className = 'ycsm-legend-manage-wrap';
-
-    const manageBtn = document.createElement('button');
-    manageBtn.className = 'ycsm-legend-manage-btn';
-    manageBtn.setAttribute('aria-label', 'Gestionar categorías');
-    manageBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>`;
-    manageBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openManageDropdown(manageWrap);
-    });
-    manageWrap.appendChild(manageBtn);
-
-    actionsWrap.appendChild(createWrap);
-    actionsWrap.appendChild(manageWrap);
-
-    if (sortedCats.length === 0) {
-      const empty = document.createElement('p');
-      empty.style.cssText = 'font-size:13px;color:#606060;margin:0;align-self:center';
-      empty.textContent = t('emptyCategoriesPlus');
-      scrollContainer.appendChild(empty);
-      legend.appendChild(scrollContainer);
-      legend.appendChild(actionsWrap);
-    } else {
-      // Pill "Todos"
-      const allPill = document.createElement('button');
-      allPill.className = 'ycsm-legend-pill ycsm-legend-all' + (filterCat === null ? ' ycsm-legend-pill-active' : '');
-      allPill.textContent = t('all');
-      allPill.addEventListener('click', () => { filterCat = null; renderPanelContent(); });
-      scrollContainer.appendChild(allPill);
-
-      sortedCats.forEach((cat) => {
-        const wrap = document.createElement('div');
-        wrap.className = 'ycsm-pill-wrap';
-        wrap.dataset.catId = cat.id;
-
-        const pill = document.createElement('button');
-        pill.className = 'ycsm-legend-pill' + (filterCat === cat.id ? ' ycsm-legend-pill-active' : '');
-        pill.textContent = cat.name;
-        pill.title = 'Doble clic para renombrar';
-        pill.addEventListener('click', () => {
-          filterCat = filterCat === cat.id ? null : cat.id;
-          renderPanelContent();
-        });
-        pill.addEventListener('dblclick', (e) => {
-          e.stopPropagation();
-          startPillRename(cat, pill);
-        });
-
-        wrap.appendChild(pill);
-        scrollContainer.appendChild(wrap);
-      });
-
-      legend.appendChild(scrollContainer);
-      legend.appendChild(actionsWrap);
-
-      // Colocar el botón "+" inline al final del scroll por defecto.
-      // Si las pills desbordan el contenedor, moverlo a actionsWrap (fijo derecha).
-      scrollContainer.appendChild(createWrap);
-
-      const repositionCreateBtn = () => {
-        const overflows = scrollContainer.scrollWidth > scrollContainer.clientWidth;
-        if (overflows && createWrap.parentElement !== actionsWrap) {
-          actionsWrap.insertBefore(createWrap, manageWrap);
-        } else if (!overflows && createWrap.parentElement !== scrollContainer) {
-          scrollContainer.appendChild(createWrap);
-        }
-      };
-
-      requestAnimationFrame(repositionCreateBtn);
-
-      _pillsOverflowObserver = new ResizeObserver(repositionCreateBtn);
-      _pillsOverflowObserver.observe(scrollContainer);
-    }
+    /* ── Sidebar ── */
+    await renderSidebar();
 
     /* ── Ordenación ── */
     let sorted;
@@ -1563,24 +1926,28 @@
       });
     }
 
-    /* ── Filtrado ── */
+    /* ── Filtrado por viewMode + texto ── */
     const visible = sorted.filter((ch) => {
       const matchText = !filterText || normalizeSearch(ch.name).includes(normalizeSearch(filterText));
-      const matchCat  = !filterCat  || (channelAssignments[ch.id] || []).includes(filterCat);
-      return matchText && matchCat;
+      let matchView = true;
+      if (viewMode === 'recent') {
+        matchView = hasNewVideo(ch.id);
+      } else if (viewMode === 'uncategorized') {
+        matchView = (channelAssignments[ch.id] || []).length === 0;
+      } else if (viewMode !== 'all') {
+        matchView = (channelAssignments[ch.id] || []).includes(viewMode);
+      }
+      return matchText && matchView;
     });
 
-    const countEl = panelEl.querySelector('.ycsm-panel-count');
-    const hasFilters = !!filterText || !!filterCat;
-    const filterParts = [];
-    if (filterText) filterParts.push(`"${filterText}"`);
-    if (filterCat) {
-      const catName = sortedCats.find(c => c.id === filterCat)?.name;
-      if (catName) filterParts.push(catName);
-    }
-    countEl.textContent = hasFilters
-      ? `${visible.length} de ${sorted.length} (${filterParts.join(' + ')})`
-      : `${visible.length} canal${visible.length !== 1 ? 'es' : ''}`;
+    // Toolbar title + count
+    const viewLabels = { all: 'Todas las suscripciones', recent: 'Recientes', uncategorized: 'Sin categorizar' };
+    const currentCatName = sortedCats.find((c) => c.id === viewMode)?.name;
+    const viewLabel = viewLabels[viewMode] || currentCatName || 'Todas las suscripciones';
+    const viewNameEl = panelEl.querySelector('#ycsm-toolbar-view-name');
+    const toolbarCountEl = panelEl.querySelector('#ycsm-toolbar-count');
+    if (viewNameEl) viewNameEl.textContent = viewLabel;
+    if (toolbarCountEl) toolbarCountEl.textContent = `${visible.length} ${visible.length === 1 ? 'canal' : 'canales'}`;
 
     /* ── Menú de categorías para asignación masiva ── */
     const catMenu = document.getElementById('ycsm-bulk-cat-menu');
@@ -1733,14 +2100,67 @@
     list.innerHTML = '';
 
     if (visible.length === 0) {
-      const empty = document.createElement('div');
-      empty.className = 'ycsm-panel-empty';
-      empty.textContent = filterText || filterCat
-        ? 'No se encontraron canales con ese filtro.'
+      const emptyMsg = filterText ? `Sin resultados para "${filterText}"`
+        : viewMode === 'uncategorized' ? '¡Todo categorizado!'
+        : viewMode === 'recent' ? 'No hay canales con actividad reciente.'
+        : viewMode !== 'all' ? `Esta categoría está vacía.`
         : 'No se detectaron suscripciones. Despliega el menú de suscripciones en YouTube y vuelve a abrir este panel.';
+      const empty = document.createElement('div');
+      empty.className = 'ycsm-new-empty';
+      empty.innerHTML = `<div class="ycsm-new-empty-title">${escapeHtml(emptyMsg)}</div>`;
       list.appendChild(empty);
       return;
     }
+
+    if (layoutMode === 'list') {
+      list.classList.remove('ycsm-panel-channels--grid');
+      list.classList.add('ycsm-panel-channels--list');
+
+      // List header
+      const listHead = document.createElement('div');
+      listHead.className = 'ycsm-list-head';
+      listHead.innerHTML = `
+        <span class="ycsm-list-head-check">
+          <label style="cursor:pointer;display:flex;align-items:center">
+            <input type="checkbox" class="ycsm-list-select-all-check" style="position:absolute;opacity:0;pointer-events:none">
+            <span class="ycsm-check-box ycsm-check-box-head" id="ycsm-list-head-check"></span>
+          </label>
+        </span>
+        <span class="ycsm-list-head-channel">Canal</span>
+        <span class="ycsm-list-head-cats">Categorías</span>
+      `;
+      const selectAllCheck = listHead.querySelector('.ycsm-list-select-all-check');
+      const headCheckBox = listHead.querySelector('#ycsm-list-head-check');
+      const nSelected = visible.filter((c) => selectedIds.has(c.id)).length;
+      if (nSelected === visible.length && visible.length > 0) {
+        headCheckBox.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+        headCheckBox.classList.add('is-checked');
+      } else if (nSelected > 0) {
+        headCheckBox.innerHTML = `<span class="ycsm-indet"></span>`;
+        headCheckBox.classList.add('is-indeterminate');
+      }
+      selectAllCheck.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          visible.forEach((c) => { selectedIds.add(c.id); list.querySelector(`[data-channel-id="${CSS.escape(c.id)}"]`)?.classList.add('ycsm-card-selected'); });
+        } else {
+          visible.forEach((c) => { selectedIds.delete(c.id); list.querySelector(`[data-channel-id="${CSS.escape(c.id)}"]`)?.classList.remove('ycsm-card-selected'); });
+        }
+        updateBulkBar();
+      });
+      list.appendChild(listHead);
+
+      visible.forEach((channel) => {
+        const row = buildChannelRow(channel, categories, channelAssignments);
+        list.appendChild(row);
+      });
+      return;
+    }
+
+    // Grid view (original card rendering)
+    list.classList.remove('ycsm-panel-channels--list');
+    list.classList.add('ycsm-panel-channels--grid');
+
+    const TIME_ICON_SVG = '<svg class="ycsm-date-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
 
     visible.forEach((channel) => {
       const assigned = channelAssignments[channel.id] || [];
@@ -1751,8 +2171,6 @@
       card.setAttribute('title', `Abrir canal de ${channel.name}`);
       card.style.cursor = 'pointer';
       card.dataset.channelId = channel.id;
-
-      const TIME_ICON_SVG = '<svg class="ycsm-date-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>';
 
       const avatarClass = 'ycsm-card-avatar';
       const avatarHtml = channel.avatar
@@ -1789,7 +2207,7 @@
       const catsContainer = card.querySelector('.ycsm-card-cats');
 
       // Botón 🏷️ con dropdown de búsqueda y listado completo de categorías
-      if (sortedCats.length > 0) {
+      {
         const tagWrap = document.createElement('div');
         tagWrap.className = 'ycsm-tag-wrap';
 
@@ -2330,72 +2748,120 @@
      CICLO DE VIDA
   ═══════════════════════════════════════════════════════════════ */
 
+  async function createCategoryFromSidebar() {
+    const sideNav = panelEl?.querySelector('#ycsm-side-cats-nav');
+    if (!sideNav || sideNav.querySelector('.ycsm-side-rename-input')) return;
+
+    const placeholder = document.createElement('div');
+    placeholder.className = 'ycsm-side-item';
+    const input = document.createElement('input');
+    input.className = 'ycsm-side-rename-input';
+    input.placeholder = 'Nueva categoría…';
+    input.maxLength = 30;
+    input.style.cssText = 'flex:1;margin:0 4px';
+    placeholder.appendChild(input);
+    sideNav.appendChild(placeholder);
+    input.focus();
+
+    let done = false;
+    const commit = async () => {
+      if (done) return;
+      done = true;
+      const n = input.value.trim();
+      placeholder.remove();
+      if (!n) return;
+      const newCat = await YCSM.storage.addCategory(n);
+      if (newCat && document.getElementById('ycsm-sidebar')) YCSM.sidebar.scheduleRender();
+      await renderSidebar();
+      await renderPanelContent();
+    };
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', async (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); await commit(); }
+      if (e.key === 'Escape') { done = true; placeholder.remove(); }
+    });
+  }
+
   async function open() {
     // Si ya está abierto, solo traerlo al frente
     if (document.getElementById('ycsm-panel')) return;
 
     filterText = '';
     filterCat = null;
-    _dateCache.clear(); // Limpiar caché de fechas para obtener datos frescos
+    viewMode = 'all';
+    layoutMode = 'list';
+    isManaging = false;
+    _dateCache.clear();
     panelEl = buildPanel();
     document.body.appendChild(panelEl);
 
-    /* ── Eventos ── */
+    /* ── Close ── */
     panelEl.querySelector('.ycsm-panel-backdrop').addEventListener('click', close);
     panelEl.querySelector('.ycsm-panel-x').addEventListener('click', close);
-    panelEl.querySelector('.ycsm-panel-close-btn').addEventListener('click', close);
 
-    const ytSearchInput = panelEl.querySelector('.ycsm-yt-search-input');
-    const ytClearBtn = panelEl.querySelector('.ycsm-yt-search-clear');
-    const ytSearchBox = panelEl.querySelector('.ycsm-yt-search-box');
-    ytSearchInput.addEventListener('input', debounce((e) => {
+    /* ── Search ── */
+    const searchInput = panelEl.querySelector('.ycsm-new-search-input');
+    const searchClear = panelEl.querySelector('.ycsm-new-search-clear');
+    const searchBox   = panelEl.querySelector('#ycsm-new-search');
+    searchInput.addEventListener('input', debounce((e) => {
       filterText = e.target.value;
-      ytClearBtn.hidden = !e.target.value;
+      searchClear.hidden = !e.target.value;
       renderPanelContent();
     }, 150));
-    ytSearchInput.addEventListener('focus', () => { ytSearchBox.classList.add('ycsm-yt-search-focused'); });
-    ytSearchInput.addEventListener('blur', () => { ytSearchBox.classList.remove('ycsm-yt-search-focused'); });
-    ytClearBtn.addEventListener('click', () => {
-      ytSearchInput.value = '';
-      ytClearBtn.hidden = true;
+    searchInput.addEventListener('focus', () => searchBox.classList.add('ycsm-new-search-focused'));
+    searchInput.addEventListener('blur',  () => searchBox.classList.remove('ycsm-new-search-focused'));
+    searchClear.addEventListener('click', () => {
+      searchInput.value = '';
+      searchClear.hidden = true;
       filterText = '';
-      ytSearchInput.focus();
+      searchInput.focus();
       renderPanelContent();
     });
-    panelEl.querySelector('.ycsm-yt-search-btn').addEventListener('click', () => {
-      ytSearchInput.focus();
+
+    /* ── Sort ── */
+    panelEl.querySelector('#ycsm-new-sort-select').addEventListener('change', (e) => {
+      sortBy = e.target.value;
+      renderPanelContent();
     });
 
-    connectSortBtn(panelEl);
-
-    // Seleccionar / deseleccionar todos los canales visibles
-    panelEl.querySelector('#ycsm-bulk-select-all-input').addEventListener('change', (e) => {
-      const visibleCards = panelEl.querySelectorAll('.ycsm-panel-card');
-      if (e.currentTarget.checked) {
-        visibleCards.forEach((c) => {
-          selectedIds.add(c.dataset.channelId);
-          c.classList.add('ycsm-card-selected');
-        });
-      } else {
-        visibleCards.forEach((c) => {
-          selectedIds.delete(c.dataset.channelId);
-          c.classList.remove('ycsm-card-selected');
-        });
-      }
-      updateBulkBar();
+    /* ── Layout toggle ── */
+    panelEl.querySelectorAll('.ycsm-view-btn').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        layoutMode = btn.dataset.layout;
+        panelEl.querySelectorAll('.ycsm-view-btn').forEach((b) => b.classList.toggle('is-active', b === btn));
+        renderPanelContent();
+      });
     });
 
-    // Limpiar selección
-    panelEl.querySelector('#ycsm-bulk-clear-btn').addEventListener('click', () => clearSelection());
+    /* ── Sidebar system nav ── */
+    panelEl.querySelectorAll('#ycsm-side-system-nav .ycsm-side-item').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        viewMode = btn.dataset.view;
+        filterCat = null;
+        renderSidebar();
+        renderPanelContent();
+      });
+    });
 
-    // Asignación masiva: toggle menú de categorías (Popover API → top layer, siempre encima de overflow:hidden)
+    /* ── Sidebar edit toggle ── */
+    panelEl.querySelector('#ycsm-side-edit-toggle').addEventListener('click', () => {
+      isManaging = !isManaging;
+      panelEl.querySelector('#ycsm-side-edit-toggle').classList.toggle('is-on', isManaging);
+      renderSidebar();
+    });
+
+    /* ── Sidebar add category ── */
+    panelEl.querySelector('#ycsm-side-add-cat').addEventListener('click', createCategoryFromSidebar);
+
+    /* ── Selection bar clear ── */
+    panelEl.querySelector('#ycsm-select-bar-clear').addEventListener('click', () => clearSelection());
+
+    /* ── Bulk assign button ── */
     panelEl.querySelector('#ycsm-bulk-cat-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       const menu = document.getElementById('ycsm-bulk-cat-menu');
       if (!menu) return;
-      // Cerrar si ya está abierto
       if (menu.matches(':popover-open')) { menu.hidePopover(); return; }
-      // Abre siempre encima del botón (la barra está en la parte inferior del panel)
       const btnRect = e.currentTarget.getBoundingClientRect();
       const MENU_W = 260;
       const GAP = 6;
@@ -2403,35 +2869,27 @@
       if (left < 8) left = 8;
       if (left + MENU_W > window.innerWidth - 8) left = window.innerWidth - MENU_W - 8;
       const bottomAnchor = window.innerHeight - btnRect.top + GAP;
-      // Inline style: sobreescribe UA popover (inset:0; margin:auto) con nuestra posición
       menu.style.cssText = `position:fixed;top:auto;bottom:${bottomAnchor}px;left:${left}px;right:auto;width:${MENU_W}px;margin:0;max-height:360px`;
       menu.showPopover();
-      // Limpiar búsqueda y enfocar input
       const si = menu.querySelector('.ycsm-bulk-cat-search-input');
       if (si) { si.value = ''; si.dispatchEvent(new Event('input')); setTimeout(() => si.focus(), 0); }
     });
+
+    /* ── Global click handler (close dropdowns/menus) ── */
     _panelClickHandler = (e) => {
-      const sortMenu = document.getElementById('ycsm-sort-menu');
-      const sortBtn  = document.getElementById('ycsm-sort-btn');
-      if (sortMenu && !sortMenu.hidden && !sortMenu.contains(e.target) && !sortBtn?.contains(e.target)) {
-        sortMenu.hidden = true;
-        sortBtn?.setAttribute('aria-expanded', 'false');
-      }
       const menu = document.getElementById('ycsm-bulk-cat-menu');
       if (menu && menu.matches(':popover-open') && !menu.contains(e.target) && !e.target.closest('#ycsm-bulk-cat-btn')) {
         menu.hidePopover();
       }
       document.querySelectorAll('.ycsm-tag-dropdown:not([hidden])').forEach((d) => {
-        if (!d.contains(e.target) && !e.target.closest('.ycsm-tag-btn')) {
+        if (!d.contains(e.target) && !e.target.closest('.ycsm-add-cat-btn')) {
           if (typeof d._close === 'function') d._close(); else d.hidden = true;
         }
       });
     };
     document.addEventListener('click', _panelClickHandler, { capture: true });
-
     document.addEventListener('keydown', handleEscape);
 
-    // Trampa de foco accesible: primer elemento enfocable
     panelEl.querySelector('button, input')?.focus();
 
     // Mostrar estado de carga mientras obtenemos canales
@@ -2478,6 +2936,9 @@
     filterText = '';
     filterCat = null;
     sortBy = 'activity';
+    viewMode = 'all';
+    layoutMode = 'list';
+    isManaging = false;
     selectedIds.clear();
     if (_dateObserver) { _dateObserver.disconnect(); _dateObserver = null; }
     if (_pillsOverflowObserver) { _pillsOverflowObserver.disconnect(); _pillsOverflowObserver = null; }
