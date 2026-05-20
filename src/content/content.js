@@ -5,8 +5,8 @@
 (function () {
   let isInjected = false;
   let injectTimeout = null;
+  let injectMaxWait = null;   // garantiza inyección aunque el debounce siga rebotando
   let observer = null;
-  let subsNavTimeout = null;   // debounce para injectSubscriptionsNav
 
   /* ═══════════════════════════════════════════════════════════════
      INYECCIÓN CON REINTENTOS
@@ -27,15 +27,22 @@
 
   function scheduleInject(delayMs = 300) {
     clearTimeout(injectTimeout);
-    injectTimeout = setTimeout(tryInject, delayMs);
+    injectTimeout = setTimeout(fireInject, delayMs);
+    if (!injectMaxWait) {
+      injectMaxWait = setTimeout(fireInject, Math.max(delayMs, 1500));
+    }
   }
 
-  // Debounce centralizado para inyectar el nav de suscripciones.
-  // Cancela el timer anterior, garantizando que solo se ejecuta una inyección
-  // tras el último evento, aunque yt-page-data-updated dispare varias veces.
-  function scheduleSubsNavInject(delayMs = 800) {
-    clearTimeout(subsNavTimeout);
-    subsNavTimeout = setTimeout(() => YCSM.subscriptionsFilter?.injectSubscriptionsNav(), delayMs);
+  function fireInject() {
+    clearTimeout(injectTimeout);
+    clearTimeout(injectMaxWait);
+    injectTimeout = null;
+    injectMaxWait = null;
+    tryInject();
+  }
+
+  function isSubscriptionsPage() {
+    return location.pathname === '/feed/subscriptions';
   }
 
   function isChannelPage() {
@@ -127,13 +134,16 @@
 
   // YouTube emite este evento tras cada navegación interna
   document.addEventListener('yt-navigate-finish', () => {
+    // Resetear el maxWait para que empiece fresco en la nueva página
+    clearTimeout(injectMaxWait);
+    injectMaxWait = null;
     isInjected = false;
     scheduleInject(600);
-    // Navbar de suscripciones
-    if (location.pathname === '/feed/subscriptions') {
-      scheduleSubsNavInject(800);
+    // Navbar de suscripciones: el módulo gestiona su propio observer
+    // y reacciona en cuanto aparece el grid, así que basta con dispararlo.
+    if (isSubscriptionsPage()) {
+      YCSM.subscriptionsFilter?.injectSubscriptionsNav();
     } else {
-      clearTimeout(subsNavTimeout);
       YCSM.subscriptionsFilter?.cleanup();
     }
     // Botón de categorías en página de vídeo o canal
@@ -146,8 +156,8 @@
   // Algunos cambios de ruta también emiten este evento
   document.addEventListener('yt-page-data-updated', () => {
     if (!isInjected) scheduleInject(500);
-    if (location.pathname === '/feed/subscriptions') {
-      scheduleSubsNavInject(600);
+    if (isSubscriptionsPage()) {
+      YCSM.subscriptionsFilter?.injectSubscriptionsNav();
     }
     // Reintentar inyección del botón de categorías si la página cargó más contenido
     if (shouldShowCategoryButton()) {
@@ -165,8 +175,9 @@
     // Primer intento inmediato; si falla, los reintentos vienen del observer
     await tryInject();
 
-    // Navbar de suscripciones en carga directa (YouTube tarda en renderizar el grid)
-    if (location.pathname === '/feed/subscriptions') scheduleSubsNavInject(1500);
+    // Navbar de suscripciones en carga directa.
+    // reconcile() es idempotente y monta su propio observer; no necesita delays.
+    if (isSubscriptionsPage()) YCSM.subscriptionsFilter?.injectSubscriptionsNav();
 
     // Botón de categorías en carga directa de página de vídeo o canal
     if (shouldShowCategoryButton()) {

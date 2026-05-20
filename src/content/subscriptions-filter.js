@@ -1,18 +1,33 @@
 /**
- * subscriptions-filter.js — Navbar de categorías en la página de Suscripciones.
- * Inyecta una barra de pills encima del grid de vídeos en /feed/subscriptions
- * y filtra los vídeos según la categoría seleccionada.
+ * subscriptions-filter.js — Navbar de categorías en /feed/subscriptions
+ *
+ * Estrategia (robusta, sin polling):
+ *  - Un MutationObserver persistente sobre `ytd-page-manager` dispara
+ *    `reconcile()` con debounce en cada cambio relevante del DOM.
+ *  - `reconcile()` es idempotente y es la única función que decide qué hacer:
+ *      • Si no estamos en /feed/subscriptions → cleanup() y fuera.
+ *      • Si el grid aún no existe → no-op (el observer volverá a llamar
+ *        cuando aparezca; no hacen falta setTimeout retries).
+ *      • Si el nav ya está bien colocado → solo aplica el filtro pendiente
+ *        si lo hay y se asegura de que el filterObserver esté activo.
+ *      • Si falta o está mal colocado → lo reconstruye e inyecta.
+ *  - Las llamadas asincrónicas se versionan: si entra una reconciliación
+ *    nueva mientras una anterior está en `await`, la anterior se autoinvalida.
  */
 (function () {
   if (!window.YCSM) window.YCSM = {};
 
-  let activeFilter = null;   // null = Todos, string = categoryId
-  let filterObserver = null;
+  let activeFilter = null;      // null = Todos, string = categoryId
+  let filterObserver = null;    // observa el grid para vídeos lazy-loaded
+  let pageObserver = null;      // observa ytd-page-manager para detectar el grid
   let navEl = null;
-  let _hrefToId = {};        // href normalizado → channelId canónico
+  let _hrefToId = {};
+  let _injectVersion = 0;
+  let _reconcileTimer = null;
+  let _reconcileMaxWait = null;   // garantiza que reconcile() se dispara aunque el debounce siga rebotando
+  let _filterDebounce = null;
 
   const { t } = YCSM.i18n;
-  let _injectVersion = 0;    // se incrementa en cada llamada; las anteriores se autoinvalidan
 
   /* ─── Utilidades ──────────────────────────────────────────── */
 
@@ -22,44 +37,36 @@
 
   function normalizeHref(href) {
     if (!href) return null;
-    return href.split('?')[0]; // quitar query params, conservar case original
+    return href.split('?')[0];
   }
 
-  /** Extrae el channelId almacenado que corresponde al href del vídeo */
+  function getGrid() {
+    return document.querySelector('ytd-rich-grid-renderer');
+  }
+
   function resolveChannelId(href) {
     if (!href) return null;
     const norm = normalizeHref(href);
     if (_hrefToId[norm]) return _hrefToId[norm];
-    // /channel/UCxxxxx → extraer solo el ID (formato que usa sidebar.js)
     if (norm.startsWith('/channel/')) return norm.replace('/channel/', '');
-    // /@handle → devolver tal cual (mismo formato que las claves de assignments)
     return norm;
   }
 
-  /** Obtiene el channelId de un ytd-rich-item-renderer */
   function getVideoChannelId(itemEl) {
-    // Buscar cualquier enlace con href de canal (amplio para cubrir cambios de DOM de YouTube)
     const link = itemEl.querySelector(
       '#avatar-link[href], a[href^="/@"], a[href^="/channel/"], a[href^="/c/"]'
     );
     const href = link?.getAttribute('href');
     if (!href) return null;
-
-    // Ignorar enlaces que no son de canal (p.ej. /watch?v=...)
     if (!href.startsWith('/@') && !href.startsWith('/channel/') && !href.startsWith('/c/')) return null;
-
     return resolveChannelId(href);
   }
-
-  /* ─── Construcción del mapa href → id desde caché ─────────── */
 
   async function buildHrefMap() {
     const { channels } = await YCSM.storage.getCachedChannels();
     _hrefToId = {};
     (channels || []).forEach((ch) => {
-      // Mapear href canónico (sin query params, case original) → id almacenado
       if (ch.href) _hrefToId[normalizeHref(ch.href)] = ch.id;
-      // También mapear /channel/UCxxxxx → id (por si el vídeo usa formato diferente)
       if (ch.id && ch.id.startsWith('UC')) {
         _hrefToId[`/channel/${ch.id}`] = ch.id;
       }
@@ -68,16 +75,11 @@
 
   /* ─── Filtrado ─────────────────────────────────────────────── */
 
-  function getGrid() {
-    return document.querySelector('ytd-rich-grid-renderer');
-  }
-
   async function applyFilter({ animate = false } = {}) {
     const { channelAssignments: assignments } = await YCSM.storage.getAll();
 
     const grid = getGrid();
 
-    // Ocultar el grid antes de aplicar para evitar el flash de contenido
     if (animate && grid) {
       grid.style.transition = 'none';
       grid.style.opacity = '0';
@@ -128,7 +130,6 @@
       }
     });
 
-    // Fade-in suave tras aplicar el filtro
     if (grid) {
       requestAnimationFrame(() => {
         grid.style.transition = 'opacity 0.2s ease';
@@ -136,7 +137,6 @@
       });
     }
 
-    // Reconectar el observer después de aplicar los cambios
     setupFilterObserver();
   }
 
@@ -151,7 +151,6 @@
     navEl.id = 'ycsm-subs-nav';
     navEl.className = 'ycsm-subs-nav';
 
-    // Contenedor scrollable horizontal (sin wrapping, estilo legend-scroll)
     const scrollWrap = document.createElement('div');
     scrollWrap.className = 'ycsm-subs-nav-scroll';
 
@@ -165,13 +164,11 @@
     scrollWrap.appendChild(allPill);
 
     sorted.forEach((cat) => {
-      const label = cat.name;
-      const pill = makePill(label, cat.id, activeFilter === cat.id);
+      const pill = makePill(cat.name, cat.id, activeFilter === cat.id);
       pill.addEventListener('click', () => {
         activeFilter = cat.id;
         refreshPills();
         applyFilter({ animate: true });
-        // Llevar la pill activa al centro del área visible
         pill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
       });
       scrollWrap.appendChild(pill);
@@ -179,15 +176,13 @@
 
     navEl.appendChild(scrollWrap);
 
-    // Actualiza las clases de fade según el scroll del contenedor
     function updateFades() {
       const sl = scrollWrap.scrollLeft;
       const maxSl = scrollWrap.scrollWidth - scrollWrap.clientWidth;
-      navEl.classList.toggle('ycsm-subs-can-scroll-left',  sl > 1);
+      navEl.classList.toggle('ycsm-subs-can-scroll-left', sl > 1);
       navEl.classList.toggle('ycsm-subs-can-scroll-right', sl < maxSl - 1);
     }
     scrollWrap.addEventListener('scroll', updateFades, { passive: true });
-    // Evaluar estado inicial tras pintar (el scroll puede estar a 0 aunque haya overflow)
     requestAnimationFrame(() => requestAnimationFrame(updateFades));
 
     return navEl;
@@ -213,14 +208,12 @@
 
   /* ─── Observer para vídeos cargados lazy ───────────────────── */
 
-  let _filterDebounce = null;
-
   function setupFilterObserver() {
     if (filterObserver) filterObserver.disconnect();
     const contents = document.querySelector(
       'ytd-rich-grid-renderer #contents, #contents.ytd-rich-grid-renderer'
     );
-    if (!contents) return;
+    if (!contents) { filterObserver = null; return; }
     filterObserver = new MutationObserver((mutations) => {
       // Si hay filtro activo, ocultar nuevos items ANTES de que el browser los pinte
       if (activeFilter) {
@@ -236,22 +229,61 @@
           }
         }
       }
-      // Luego el debounce aplica el filtro completo y revela los correctos
       clearTimeout(_filterDebounce);
       _filterDebounce = setTimeout(() => applyFilter(), 400);
     });
     filterObserver.observe(contents, { childList: true, subtree: true });
   }
 
-  /* ─── Inyección principal ──────────────────────────────────── */
+  /* ─── Reconciliación (núcleo) ──────────────────────────────── */
 
-  async function injectSubscriptionsNav() {
+  // Debounce con maxWait: el debounce normal se resetea en cada llamada,
+  // pero el maxWait garantiza la ejecución aunque las mutaciones del DOM de
+  // YouTube sigan rebotando indefinidamente el timer (livelock).
+  function scheduleReconcile(delay = 100) {
+    clearTimeout(_reconcileTimer);
+    _reconcileTimer = setTimeout(fireReconcile, delay);
+    if (!_reconcileMaxWait) {
+      _reconcileMaxWait = setTimeout(fireReconcile, Math.max(delay, 600));
+    }
+  }
+
+  function fireReconcile() {
+    clearTimeout(_reconcileTimer);
+    clearTimeout(_reconcileMaxWait);
+    _reconcileTimer = null;
+    _reconcileMaxWait = null;
+    reconcile();
+  }
+
+  async function reconcile() {
     if (!isSubscriptionsPage()) {
       cleanup();
       return;
     }
 
-    // Cada llamada toma un número de versión; si llega una más nueva, esta se cancela
+    setupPageObserver();
+
+    const grid = getGrid();
+    if (!grid) return; // el page observer volverá a llamarnos cuando aparezca
+
+    // ── Caso 1: el nav ya está donde toca ────────────────────────
+    if (navEl && navEl.isConnected && navEl.nextElementSibling === grid) {
+      const pending = sessionStorage.getItem('ycsm_pending_filter');
+      if (pending) {
+        sessionStorage.removeItem('ycsm_pending_filter');
+        activeFilter = pending;
+        refreshPills();
+        applyFilter({ animate: false });
+      } else if (!filterObserver) {
+        // Asegura que el filterObserver siga activo aunque YouTube haya
+        // reemplazado #contents bajo nuestros pies.
+        setupFilterObserver();
+      }
+      return;
+    }
+
+    // ── Caso 2: hay que (re)inyectar ─────────────────────────────
     const myVersion = ++_injectVersion;
 
     await buildHrefMap();
@@ -260,28 +292,10 @@
     const { categories } = await YCSM.storage.getAll();
     if (Object.keys(categories).length === 0) return;
 
-    // Esperar el grid con polling (en navegación SPA puede tardar en aparecer)
-    let grid = document.querySelector('ytd-rich-grid-renderer');
-    if (!grid) {
-      for (let i = 0; i < 15; i++) {
-        await new Promise((r) => setTimeout(r, 400));
-        if (_injectVersion !== myVersion || !isSubscriptionsPage()) return;
-        grid = document.querySelector('ytd-rich-grid-renderer');
-        if (grid) break;
-      }
-      if (!grid) return;
-    }
+    const freshGrid = getGrid();
+    if (!freshGrid) return;
 
-    if (_injectVersion !== myVersion) return;
-
-    // Si el nav ya está correctamente posicionado, no reinsertar
-    if (navEl && navEl.isConnected && navEl.nextElementSibling === grid) {
-      setupFilterObserver();
-      applyFilter({ animate: false });
-      return;
-    }
-
-    // Recuperar filtro pendiente (viene de clic en sidebar)
+    // Consume el filtro pendiente que dejó el sidebar antes de navegar
     const pending = sessionStorage.getItem('ycsm_pending_filter');
     if (pending) {
       activeFilter = pending;
@@ -289,28 +303,45 @@
     }
 
     const nav = await buildNav();
-    if (_injectVersion !== myVersion || !isSubscriptionsPage()) return;
+    if (_injectVersion !== myVersion || !isSubscriptionsPage() || !freshGrid.isConnected) return;
 
-    grid.parentElement.insertBefore(nav, grid);
+    freshGrid.parentElement.insertBefore(nav, freshGrid);
     setupFilterObserver();
     applyFilter({ animate: false });
   }
 
-  async function refreshNav() {
-    if (!isSubscriptionsPage()) return;
-    await injectSubscriptionsNav();
+  /* ─── Observer de la página (watchdog) ─────────────────────── */
+
+  function setupPageObserver() {
+    if (pageObserver) return;
+    const target = document.querySelector('ytd-page-manager')
+                 || document.querySelector('ytd-app')
+                 || document.body;
+    if (!target) return;
+    pageObserver = new MutationObserver(() => scheduleReconcile(120));
+    pageObserver.observe(target, { childList: true, subtree: true });
   }
 
-  /* ─── Limpieza al salir de la página ──────────────────────── */
+  function teardownPageObserver() {
+    pageObserver?.disconnect();
+    pageObserver = null;
+  }
+
+  /* ─── Limpieza ─────────────────────────────────────────────── */
 
   function cleanup() {
     if (filterObserver) { filterObserver.disconnect(); filterObserver = null; }
+    teardownPageObserver();
     clearTimeout(_filterDebounce);
+    clearTimeout(_reconcileTimer);
+    clearTimeout(_reconcileMaxWait);
+    _reconcileTimer = null;
+    _reconcileMaxWait = null;
     navEl?.remove();
     navEl = null;
     activeFilter = null;
     _hrefToId = {};
-    _injectVersion++; // invalida cualquier inyección pendiente
+    _injectVersion++; // invalida cualquier reconciliación en vuelo
   }
 
   function activateFilter(categoryId) {
@@ -319,5 +350,21 @@
     applyFilter({ animate: true });
   }
 
-  window.YCSM.subscriptionsFilter = { injectSubscriptionsNav, refreshNav, cleanup, activateFilter };
+  /* ─── API pública ──────────────────────────────────────────── */
+  //
+  // `injectSubscriptionsNav` y `refreshNav` mantienen el nombre por compatibilidad,
+  // pero ahora ambas delegan en la misma reconciliación idempotente.
+  // `refreshNav` además fuerza una reconstrucción del nav (p.ej. tras
+  // cambios en categorías), eliminando el nav existente para invalidar Caso 1.
+
+  window.YCSM.subscriptionsFilter = {
+    injectSubscriptionsNav: () => scheduleReconcile(0),
+    refreshNav: () => {
+      navEl?.remove();
+      navEl = null;
+      scheduleReconcile(0);
+    },
+    cleanup,
+    activateFilter,
+  };
 })();

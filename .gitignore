@@ -5,6 +5,7 @@
 
 # Editor
 .vscode/
+.claude/
 *.swp
 *.swo
 

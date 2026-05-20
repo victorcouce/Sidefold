@@ -52,7 +52,13 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["src/panel/panel.html"],
+      "resources": [
+        "src/panel/panel.html",
+        "src/panel/panel.css",
+        "src/panel/panel-ui.js",
+        "src/shared/i18n.js",
+        "src/shared/storage.js"
+      ],
       "matches": ["https://www.youtube.com/*"]
     }
   ]

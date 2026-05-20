@@ -6,7 +6,6 @@
   if (!window.YCSM) window.YCSM = {};
 
   let sidebarRoot = null;
-  let dragState = null;
 
   const { t } = YCSM.i18n;
 
@@ -95,22 +94,13 @@
     el.setAttribute('draggable', 'false');
 
     el.innerHTML = `
-      <span class="ycsm-drag-handle" title="${escapeHtml(t('reorderCategory'))}" aria-hidden="true">⋮⋮</span>
       <span class="ycsm-cat-entry-label">
         <span class="ycsm-cat-entry-name">${escapeHtml(label)}</span>
       </span>
     `;
 
-    const handle = el.querySelector('.ycsm-drag-handle');
-    handle.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-    });
-    setupDragHandlers(el, category.id, handle);
-
     // Navegar a suscripciones con este filtro activo
     el.addEventListener('click', (e) => {
-      if (e.target.closest('.ycsm-drag-handle')) return;
       if (e.target.closest('.ycsm-cat-entry-actions')) return;
       e.preventDefault();
       // Guardar el filtro deseado para que subscriptions-filter lo lea al inyectarse
@@ -298,67 +288,6 @@
       }
     };
     setTimeout(() => document.addEventListener('click', closeMenu, true), 0);
-  }
-
-  /* ═══════════════════════════════════════════════════════════════
-     DRAG & DROP (reordenar categorías)
-  ═══════════════════════════════════════════════════════════════ */
-
-  function setupDragHandlers(catEl, categoryId, handle) {
-    handle.addEventListener('mousedown', () => {
-      catEl.setAttribute('draggable', 'true');
-    });
-
-    catEl.addEventListener('dragstart', (e) => {
-      dragState = { categoryId };
-      catEl.classList.add('ycsm-dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', categoryId);
-    });
-
-    catEl.addEventListener('dragend', () => {
-      catEl.setAttribute('draggable', 'false');
-      catEl.classList.remove('ycsm-dragging');
-      document.querySelectorAll('.ycsm-drag-over')
-        .forEach((el) => el.classList.remove('ycsm-drag-over'));
-      dragState = null;
-    });
-
-    catEl.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      if (dragState && dragState.categoryId !== categoryId) {
-        catEl.classList.add('ycsm-drag-over');
-        e.dataTransfer.dropEffect = 'move';
-      }
-    });
-
-    catEl.addEventListener('dragleave', (e) => {
-      if (!catEl.contains(e.relatedTarget)) {
-        catEl.classList.remove('ycsm-drag-over');
-      }
-    });
-
-    catEl.addEventListener('drop', async (e) => {
-      e.preventDefault();
-      catEl.classList.remove('ycsm-drag-over');
-      if (!dragState || dragState.categoryId === categoryId) return;
-
-      const list = sidebarRoot?.querySelector('.ycsm-categories-list');
-      if (!list) return;
-
-      const categoryEls = [...list.querySelectorAll(':scope > .ycsm-cat-entry')];
-      const ids = categoryEls.map((el) => el.dataset.categoryId);
-
-      const fromIdx = ids.indexOf(dragState.categoryId);
-      const toIdx = ids.indexOf(categoryId);
-      if (fromIdx === -1 || toIdx === -1) return;
-
-      ids.splice(fromIdx, 1);
-      ids.splice(toIdx, 0, dragState.categoryId);
-
-      await YCSM.storage.reorderCategories(ids);
-      await renderSidebar();
-    });
   }
 
   /* ═══════════════════════════════════════════════════════════════

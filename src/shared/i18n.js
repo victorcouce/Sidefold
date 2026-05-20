@@ -24,20 +24,33 @@
     } catch (_) {
       document.documentElement.lang = 'en';
     }
+    // When a key is missing in messages.json, t() returns the key itself.
+    // In that case keep the existing DOM value (markup-level fallback)
+    // instead of overwriting it with the raw key.
     root.querySelectorAll('[data-i18n]').forEach((el) => {
-      el.textContent = t(el.dataset.i18n);
+      const k = el.dataset.i18n;
+      const v = t(k);
+      if (v && v !== k) el.textContent = v;
     });
     root.querySelectorAll('[data-i18n-html]').forEach((el) => {
-      el.innerHTML = t(el.dataset.i18nHtml);
+      const k = el.dataset.i18nHtml;
+      const v = t(k);
+      if (v && v !== k) el.innerHTML = v;
     });
     root.querySelectorAll('[data-i18n-title]').forEach((el) => {
-      el.setAttribute('title', t(el.dataset.i18nTitle));
+      const k = el.dataset.i18nTitle;
+      const v = t(k);
+      if (v && v !== k) el.setAttribute('title', v);
     });
     root.querySelectorAll('[data-i18n-placeholder]').forEach((el) => {
-      el.setAttribute('placeholder', t(el.dataset.i18nPlaceholder));
+      const k = el.dataset.i18nPlaceholder;
+      const v = t(k);
+      if (v && v !== k) el.setAttribute('placeholder', v);
     });
     root.querySelectorAll('[data-i18n-aria-label]').forEach((el) => {
-      el.setAttribute('aria-label', t(el.dataset.i18nAriaLabel));
+      const k = el.dataset.i18nAriaLabel;
+      const v = t(k);
+      if (v && v !== k) el.setAttribute('aria-label', v);
     });
   }
 
