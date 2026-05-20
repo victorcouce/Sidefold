@@ -19,6 +19,20 @@
     return div.innerHTML;
   }
 
+  function hashHue(value) {
+    let n = 0;
+    const s = String(value || '');
+    for (let i = 0; i < s.length; i++) n = (n * 31 + s.charCodeAt(i)) | 0;
+    return Math.abs(n) % 360;
+  }
+
+  function categoryColor(category) {
+    const hue = typeof category.color === 'number'
+      ? category.color
+      : (typeof category.hue === 'number' ? category.hue : hashHue(category.id || category.name));
+    return `oklch(0.72 0.16 ${hue})`;
+  }
+
 
   /* ═══════════════════════════════════════════════════════════════
      SCRAPING DEL DOM DE YOUTUBE
@@ -94,9 +108,11 @@
     el.setAttribute('draggable', 'false');
 
     el.innerHTML = `
+      <span class="ycsm-cat-entry-dot" style="background:${escapeHtml(categoryColor(category))}"></span>
       <span class="ycsm-cat-entry-label">
         <span class="ycsm-cat-entry-name">${escapeHtml(label)}</span>
       </span>
+      <span class="ycsm-cat-entry-count">${assigned.length}</span>
     `;
 
     // Navegar a suscripciones con este filtro activo

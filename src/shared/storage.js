@@ -8,6 +8,7 @@
   const DEFAULT_SETTINGS = {
     showUncategorized: true,
     collapseByDefault: false,
+    subscriptionsLayout: 'list',
   };
 
   function generateId() {
@@ -84,7 +85,7 @@
     _memCache = {
       categories: data.categories || {},
       channelAssignments: data.channelAssignments || {},
-      settings: data.settings || { ...DEFAULT_SETTINGS },
+      settings: { ...DEFAULT_SETTINGS, ...(data.settings || {}) },
     };
     return _memCache;
   }

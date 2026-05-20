@@ -68,6 +68,7 @@
     close:      '<path d="M18 6L6 18M6 6l12 12"/>',
     search:     '<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.35-3.35"/>',
     plus:       '<path d="M12 5v14M5 12h14"/>',
+    minus:      '<path d="M5 12h14"/>',
     check:      '<polyline points="20 6 9 17 4 12"/>',
     trash:      '<path d="M3 6h18"/><path d="M19 6l-2 14a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/>',
     pencil:     '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4z"/>',
@@ -129,8 +130,21 @@
     const all = await storage.getAll();
     state.categories = sortByOrder(all.categories);
     state.assignments = all.channelAssignments || {};
+    if (all.settings?.subscriptionsLayout === 'list' || all.settings?.subscriptionsLayout === 'grid') {
+      state.layout = all.settings.subscriptionsLayout;
+    }
     const cached = await storage.getCachedChannels();
     state.channels = cached.channels || [];
+  }
+
+  async function setLayout(layout) {
+    if (layout !== 'list' && layout !== 'grid') return;
+    state.layout = layout;
+    render();
+    const settings = await storage.getSettings();
+    if (settings.subscriptionsLayout !== layout) {
+      await storage.saveSettings({ ...settings, subscriptionsLayout: layout });
+    }
   }
 
   async function actAddCategory(name) {
@@ -164,6 +178,19 @@
     for (const id of chIds) {
       const has = (state.assignments[id] || []).includes(catId);
       if (!has) await storage.assignChannel(id, catId);
+    }
+    await refreshFromStorage();
+  }
+  async function actBulkToggle(chIds, catId) {
+    const allHaveCategory = chIds.length > 0 && chIds.every((id) =>
+      (state.assignments[id] || []).includes(catId)
+    );
+    for (const id of chIds) {
+      if (allHaveCategory) await storage.unassignChannel(id, catId);
+      else {
+        const has = (state.assignments[id] || []).includes(catId);
+        if (!has) await storage.assignChannel(id, catId);
+      }
     }
     await refreshFromStorage();
   }
@@ -491,12 +518,12 @@
           h('button', {
             class: state.layout === 'list' ? 'is-active' : '',
             i18nTitle: 'viewList', title: 'Lista',
-            onclick: () => { state.layout = 'list'; render(); },
+            onclick: () => { setLayout('list'); },
           }, icon(ICONS.list, { size: 16 })),
           h('button', {
             class: state.layout === 'grid' ? 'is-active' : '',
             i18nTitle: 'viewGrid', title: 'Cuadrícula',
-            onclick: () => { state.layout = 'grid'; render(); },
+            onclick: () => { setLayout('grid'); },
           }, icon(ICONS.grid, { size: 16 }))
         )
       )
@@ -638,12 +665,11 @@
     const pickerWrap = h('div', { class: 'add-cat-wrap' },
       h('button', {
         class: 'add-cat-btn',
-        i18nAria: 'assignCategory',
-        'aria-label': 'Asignar categoría',
+        i18nAria: 'manageChannelCategories',
+        'aria-label': 'Gestionar categorías del canal',
         onclick: (e) => { e.stopPropagation(); openPicker({ kind: 'row', chId: ch.id }); },
       },
-        icon(ICONS.plus, { size: 14, sw: 2.5 }),
-        cats.length === 0 ? h('span', { i18n: 'categorize' }, 'Categorizar') : null
+        icon(ICONS.tag, { size: 15, sw: 2.1 })
       )
     );
     if (state.picker?.kind === 'row' && state.picker.chId === ch.id) {
@@ -706,10 +732,10 @@
       const pickerWrap = h('div', { class: 'add-cat-wrap' },
         h('button', {
           class: 'add-cat-btn add-cat-btn-card',
-          i18nAria: 'assignCategory',
-          'aria-label': 'Asignar categoría',
+          i18nAria: 'manageChannelCategories',
+          'aria-label': 'Gestionar categorías del canal',
           onclick: (e) => { e.stopPropagation(); openPicker({ kind: 'card', chId: ch.id }); },
-        }, icon(ICONS.plus, { size: 13, sw: 2.5 }))
+        }, icon(ICONS.tag, { size: 15, sw: 2.1 }))
       );
       if (state.picker?.kind === 'card' && state.picker.chId === ch.id) {
         pickerWrap.appendChild(buildPicker(ch.id, ch));
@@ -748,23 +774,27 @@
     const canCreate = q.length > 0 && !exact;
 
     const isBulk = p.kind === 'bulk';
+    const selectedIds = [...state.selected];
     const currentCatIds = isBulk ? [] : (state.assignments[scopeChId] || []);
 
     const list = h('div', { class: 'picker-list' });
     filtered.forEach((c) => {
-      const active = currentCatIds.includes(c.id);
+      const active = isBulk
+        ? selectedIds.length > 0 && selectedIds.every((id) => (state.assignments[id] || []).includes(c.id))
+        : currentCatIds.includes(c.id);
+      const partial = isBulk && !active && selectedIds.some((id) => (state.assignments[id] || []).includes(c.id));
       list.appendChild(h('button', {
-        class: 'picker-item' + (active ? ' is-active' : ''),
-        'aria-pressed': active ? 'true' : 'false',
+        class: 'picker-item' + (active ? ' is-active' : '') + (partial ? ' is-partial' : ''),
+        'aria-pressed': active ? 'true' : (partial ? 'mixed' : 'false'),
         onclick: (e) => {
           e.stopPropagation();
-          if (isBulk) { actBulkAssign([...state.selected], c.id).then(() => { closePicker(); state.selected = new Set(); render(); }); }
+          if (isBulk) { actBulkToggle(selectedIds, c.id).then(render); }
           else        { actToggle(scopeChId, c.id).then(render); }
         },
       },
         h('span', { class: 'dot', style: { background: catColor(c) } }),
         h('span', { class: 'name' }, c.name),
-        active ? icon(ICONS.check, { size: 14 }) : null
+        active ? icon(ICONS.check, { size: 14 }) : (partial ? icon(ICONS.minus, { size: 14 }) : null)
       ));
     });
     if (canCreate) {
@@ -847,11 +877,12 @@
     ));
     const wrap = h('div', { class: 'add-cat-wrap' },
       h('button', {
-        class: 'btn btn-primary',
+        class: 'btn btn-primary assign-cat-icon-btn',
+        i18nAria: 'manageCategories',
+        'aria-label': 'Gestionar categorías',
         onclick: (e) => { e.stopPropagation(); openPicker({ kind: 'bulk' }); },
       },
-        icon(ICONS.tag, { size: 14, sw: 2 }),
-        h('span', { i18n: 'assignCategory' }, 'Asignar categoría')
+        icon(ICONS.tag, { size: 16, sw: 2 })
       )
     );
     if (state.picker?.kind === 'bulk') {

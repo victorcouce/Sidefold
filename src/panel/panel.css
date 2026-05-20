@@ -460,8 +460,8 @@ input, select { font-family: inherit; color: inherit; }
 
 .add-cat-wrap { position: relative; }
 .add-cat-btn {
-  display: inline-flex; align-items: center; gap: 5px;
-  height: 26px; padding: 0 10px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 28px; height: 26px; padding: 0;
   border-radius: 999px;
   border: 1px dashed var(--border-2);
   background: transparent;
@@ -475,7 +475,7 @@ input, select { font-family: inherit; color: inherit; }
   color: var(--text);
   background: var(--hover-soft);
 }
-.add-cat-btn-card { padding: 0; width: 26px; justify-content: center; }
+.add-cat-btn-card { width: 26px; }
 
 /* ─── Grid view ──────────────────────────────────────────── */
 .grid {
@@ -526,6 +526,7 @@ input, select { font-family: inherit; color: inherit; }
 .card-cats {
   display: flex; flex-wrap: wrap; gap: 4px; justify-content: center;
   min-height: 28px; align-items: center;
+  padding-top: 4px;
 }
 
 /* ─── Picker popover ─────────────────────────────────────── */
@@ -574,6 +575,7 @@ input, select { font-family: inherit; color: inherit; }
 .picker-item .name { flex: 1; }
 .picker-item.is-active { background: var(--hover-soft); }
 .picker-item.is-active .name { font-weight: 500; }
+.picker-item.is-partial .name { font-weight: 500; }
 .picker-empty { padding: 16px 10px; text-align: center; font-size: 12px; color: var(--text-dim); }
 .picker-create .plus {
   width: 10px; height: 10px; border-radius: 50%;
@@ -656,6 +658,16 @@ input, select { font-family: inherit; color: inherit; }
   .btn-primary { background: #3ea6ff; color: #0f0f0f; }
 }
 .btn-primary:hover { filter: brightness(1.08); }
+.assign-cat-icon-btn {
+  width: 34px;
+  min-width: 34px;
+  padding: 0;
+  justify-content: center;
+}
+.assign-cat-icon-btn svg {
+  display: block;
+  flex: 0 0 auto;
+}
 
 /* ─── Empty state ────────────────────────────────────────── */
 .empty {
