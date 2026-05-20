@@ -1499,9 +1499,6 @@
 
       if (isManaging) {
         item.innerHTML = `
-          <span class="ycsm-side-drag" title="Arrastrar">
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="9" cy="6" r="1.2" fill="currentColor"/><circle cx="9" cy="12" r="1.2" fill="currentColor"/><circle cx="9" cy="18" r="1.2" fill="currentColor"/><circle cx="15" cy="6" r="1.2" fill="currentColor"/><circle cx="15" cy="12" r="1.2" fill="currentColor"/><circle cx="15" cy="18" r="1.2" fill="currentColor"/></svg>
-          </span>
           <span class="ycsm-side-dot" style="background:${escapeHtml(color)}"></span>
           <span class="ycsm-side-name">${escapeHtml(cat.name)}</span>
           <span class="ycsm-side-actions">

@@ -3299,7 +3299,7 @@ html[dark] .ycsm-vd-empty {
   width: 260px; flex-shrink: 0;
   border-right: 1px solid var(--ycsm-border);
   padding: 10px 8px;
-  overflow-y: auto;
+  overflow-y: auto; overflow-x: hidden;
   display: flex; flex-direction: column;
 }
 
@@ -3331,11 +3331,6 @@ html[dark] .ycsm-vd-empty {
 .ycsm-side-dot {
   width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
 }
-.ycsm-side-drag {
-  display: flex; align-items: center; justify-content: center;
-  margin-right: -4px; cursor: grab;
-  color: var(--ycsm-text-muted); opacity: 0.7;
-}
 .ycsm-side-actions { display: flex; gap: 2px; margin-left: auto; }
 .ycsm-side-action-btn {
   width: 26px; height: 26px;
@@ -3348,11 +3343,13 @@ html[dark] .ycsm-vd-empty {
   background: var(--ycsm-chip); color: var(--ycsm-text-primary);
 }
 .ycsm-side-rename-input {
-  flex: 1; background: var(--ycsm-surface-alt);
+  flex: 1; min-width: 0;
+  background: var(--ycsm-surface-alt);
   border: 1px solid var(--ycsm-line);
   color: var(--ycsm-text-primary);
   border-radius: 6px; padding: 4px 8px;
   font-size: 14px; outline: none; font-family: inherit;
+  box-sizing: border-box;
 }
 .ycsm-side-rename-input:focus { border-color: #3ea6ff; }
 
