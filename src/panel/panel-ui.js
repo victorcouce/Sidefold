@@ -593,10 +593,24 @@
       h('span', { class: 'check-box' }, sel ? icon(ICONS.check, { size: 12, sw: 3 }) : null)
     ));
 
-    row.appendChild(buildAvatar(ch, 44));
+    const avatarLink = h('a', {
+      class: 'row-avatar-link',
+      href: ch.href ? 'https://www.youtube.com' + ch.href : '#',
+      target: '_blank',
+      rel: 'noopener',
+      onclick: (e) => e.stopPropagation(),
+    }, buildAvatar(ch, 44));
+    row.appendChild(avatarLink);
 
+    const nameLink = h('a', {
+      class: 'row-name-link',
+      href: ch.href ? 'https://www.youtube.com' + ch.href : '#',
+      target: '_blank',
+      rel: 'noopener',
+      onclick: (e) => e.stopPropagation(),
+    }, ch.name);
     row.appendChild(h('div', { class: 'row-meta' },
-      h('div', { class: 'row-name' }, ch.name),
+      h('div', { class: 'row-name' }, nameLink),
       ch.last ? h('div', { class: 'row-sub' }, ch.last) : null
     ));
 

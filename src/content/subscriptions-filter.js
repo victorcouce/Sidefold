@@ -1,30 +1,24 @@
 /**
  * subscriptions-filter.js — Navbar de categorías en /feed/subscriptions
  *
- * Estrategia (robusta, sin polling):
- *  - Un MutationObserver persistente sobre `ytd-page-manager` dispara
- *    `reconcile()` con debounce en cada cambio relevante del DOM.
- *  - `reconcile()` es idempotente y es la única función que decide qué hacer:
- *      • Si no estamos en /feed/subscriptions → cleanup() y fuera.
- *      • Si el grid aún no existe → no-op (el observer volverá a llamar
- *        cuando aparezca; no hacen falta setTimeout retries).
- *      • Si el nav ya está bien colocado → solo aplica el filtro pendiente
- *        si lo hay y se asegura de que el filterObserver esté activo.
- *      • Si falta o está mal colocado → lo reconstruye e inyecta.
- *  - Las llamadas asincrónicas se versionan: si entra una reconciliación
- *    nueva mientras una anterior está en `await`, la anterior se autoinvalida.
+ * Estrategia: setInterval simple (300 ms) mientras estamos en /feed/subscriptions.
+ *  - Cada tick comprueba:
+ *      • ¿Estoy en subs? No → cleanup y para el interval.
+ *      • ¿Hay grid? No → espera al siguiente tick.
+ *      • ¿El nav ya está bien colocado? Sí → aplica filtro pendiente si lo hay.
+ *      • No → inyecta.
+ *  - Sin MutationObserver de página, sin debounce, sin versionado.
+ *    Imposible livelock porque el interval no se cancela por mutaciones del DOM.
  */
 (function () {
   if (!window.YCSM) window.YCSM = {};
 
   let activeFilter = null;      // null = Todos, string = categoryId
   let filterObserver = null;    // observa el grid para vídeos lazy-loaded
-  let pageObserver = null;      // observa ytd-page-manager para detectar el grid
   let navEl = null;
   let _hrefToId = {};
-  let _injectVersion = 0;
-  let _reconcileTimer = null;
-  let _reconcileMaxWait = null;   // garantiza que reconcile() se dispara aunque el debounce siga rebotando
+  let _pollInterval = null;     // setInterval de reconciliación
+  let _reconciling = false;     // lock para evitar solapamiento de reconcile()
   let _filterDebounce = null;
 
   const { t } = YCSM.i18n;
@@ -237,111 +231,86 @@
 
   /* ─── Reconciliación (núcleo) ──────────────────────────────── */
 
-  // Debounce con maxWait: el debounce normal se resetea en cada llamada,
-  // pero el maxWait garantiza la ejecución aunque las mutaciones del DOM de
-  // YouTube sigan rebotando indefinidamente el timer (livelock).
-  function scheduleReconcile(delay = 100) {
-    clearTimeout(_reconcileTimer);
-    _reconcileTimer = setTimeout(fireReconcile, delay);
-    if (!_reconcileMaxWait) {
-      _reconcileMaxWait = setTimeout(fireReconcile, Math.max(delay, 600));
+  async function reconcile() {
+    if (_reconciling) return; // ya hay una reconciliación en curso
+    _reconciling = true;
+    try {
+      if (!isSubscriptionsPage()) {
+        cleanup();
+        return;
+      }
+
+      const grid = getGrid();
+      if (!grid) return; // siguiente tick lo reintentará
+
+      // ── Caso 1: el nav ya está donde toca ────────────────────────
+      if (navEl && navEl.isConnected && navEl.nextElementSibling === grid) {
+        const pending = sessionStorage.getItem('ycsm_pending_filter');
+        if (pending) {
+          sessionStorage.removeItem('ycsm_pending_filter');
+          activeFilter = pending;
+          refreshPills();
+          applyFilter({ animate: false });
+        } else if (!filterObserver) {
+          setupFilterObserver();
+        }
+        return;
+      }
+
+      // ── Caso 2: hay que (re)inyectar ─────────────────────────────
+      await buildHrefMap();
+      if (!isSubscriptionsPage()) return;
+
+      const { categories } = await YCSM.storage.getAll();
+      if (Object.keys(categories).length === 0) return;
+
+      const freshGrid = getGrid();
+      if (!freshGrid) return;
+
+      // Consume el filtro pendiente que dejó el sidebar antes de navegar
+      const pending = sessionStorage.getItem('ycsm_pending_filter');
+      if (pending) {
+        activeFilter = pending;
+        sessionStorage.removeItem('ycsm_pending_filter');
+      }
+
+      const nav = await buildNav();
+      if (!isSubscriptionsPage() || !freshGrid.isConnected) return;
+
+      freshGrid.parentElement.insertBefore(nav, freshGrid);
+      setupFilterObserver();
+      applyFilter({ animate: false });
+    } finally {
+      _reconciling = false;
     }
   }
 
-  function fireReconcile() {
-    clearTimeout(_reconcileTimer);
-    clearTimeout(_reconcileMaxWait);
-    _reconcileTimer = null;
-    _reconcileMaxWait = null;
+  /* ─── Polling (reemplaza al MutationObserver) ──────────────── */
+
+  function startPolling() {
+    if (_pollInterval) return;
+    _pollInterval = setInterval(reconcile, 300);
+    // Tick inmediato
     reconcile();
   }
 
-  async function reconcile() {
-    if (!isSubscriptionsPage()) {
-      cleanup();
-      return;
+  function stopPolling() {
+    if (_pollInterval) {
+      clearInterval(_pollInterval);
+      _pollInterval = null;
     }
-
-    setupPageObserver();
-
-    const grid = getGrid();
-    if (!grid) return; // el page observer volverá a llamarnos cuando aparezca
-
-    // ── Caso 1: el nav ya está donde toca ────────────────────────
-    if (navEl && navEl.isConnected && navEl.nextElementSibling === grid) {
-      const pending = sessionStorage.getItem('ycsm_pending_filter');
-      if (pending) {
-        sessionStorage.removeItem('ycsm_pending_filter');
-        activeFilter = pending;
-        refreshPills();
-        applyFilter({ animate: false });
-      } else if (!filterObserver) {
-        // Asegura que el filterObserver siga activo aunque YouTube haya
-        // reemplazado #contents bajo nuestros pies.
-        setupFilterObserver();
-      }
-      return;
-    }
-
-    // ── Caso 2: hay que (re)inyectar ─────────────────────────────
-    const myVersion = ++_injectVersion;
-
-    await buildHrefMap();
-    if (_injectVersion !== myVersion || !isSubscriptionsPage()) return;
-
-    const { categories } = await YCSM.storage.getAll();
-    if (Object.keys(categories).length === 0) return;
-
-    const freshGrid = getGrid();
-    if (!freshGrid) return;
-
-    // Consume el filtro pendiente que dejó el sidebar antes de navegar
-    const pending = sessionStorage.getItem('ycsm_pending_filter');
-    if (pending) {
-      activeFilter = pending;
-      sessionStorage.removeItem('ycsm_pending_filter');
-    }
-
-    const nav = await buildNav();
-    if (_injectVersion !== myVersion || !isSubscriptionsPage() || !freshGrid.isConnected) return;
-
-    freshGrid.parentElement.insertBefore(nav, freshGrid);
-    setupFilterObserver();
-    applyFilter({ animate: false });
-  }
-
-  /* ─── Observer de la página (watchdog) ─────────────────────── */
-
-  function setupPageObserver() {
-    if (pageObserver) return;
-    const target = document.querySelector('ytd-page-manager')
-                 || document.querySelector('ytd-app')
-                 || document.body;
-    if (!target) return;
-    pageObserver = new MutationObserver(() => scheduleReconcile(120));
-    pageObserver.observe(target, { childList: true, subtree: true });
-  }
-
-  function teardownPageObserver() {
-    pageObserver?.disconnect();
-    pageObserver = null;
   }
 
   /* ─── Limpieza ─────────────────────────────────────────────── */
 
   function cleanup() {
     if (filterObserver) { filterObserver.disconnect(); filterObserver = null; }
-    teardownPageObserver();
+    stopPolling();
     clearTimeout(_filterDebounce);
-    clearTimeout(_reconcileTimer);
-    clearTimeout(_reconcileMaxWait);
-    _reconcileTimer = null;
-    _reconcileMaxWait = null;
     navEl?.remove();
     navEl = null;
     activeFilter = null;
     _hrefToId = {};
-    _injectVersion++; // invalida cualquier reconciliación en vuelo
   }
 
   function activateFilter(categoryId) {
@@ -351,18 +320,13 @@
   }
 
   /* ─── API pública ──────────────────────────────────────────── */
-  //
-  // `injectSubscriptionsNav` y `refreshNav` mantienen el nombre por compatibilidad,
-  // pero ahora ambas delegan en la misma reconciliación idempotente.
-  // `refreshNav` además fuerza una reconstrucción del nav (p.ej. tras
-  // cambios en categorías), eliminando el nav existente para invalidar Caso 1.
 
   window.YCSM.subscriptionsFilter = {
-    injectSubscriptionsNav: () => scheduleReconcile(0),
+    injectSubscriptionsNav: () => startPolling(),
     refreshNav: () => {
       navEl?.remove();
       navEl = null;
-      scheduleReconcile(0);
+      startPolling();
     },
     cleanup,
     activateFilter,

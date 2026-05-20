@@ -215,6 +215,12 @@
       }
     }
   },
+  "channelsSelectedOne": {
+    "message": "चैनल चुना गया"
+  },
+  "channelsSelectedMany": {
+    "message": "चैनल चुने गए"
+  },
   "today": {
     "message": "आज"
   },

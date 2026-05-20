@@ -1,44 +1,52 @@
 /**
  * content.js — Controlador principal del content script.
- * Gestiona inyección, MutationObserver y navegación SPA de YouTube.
+ * Gestiona inyección, setInterval y navegación SPA de YouTube.
  */
 (function () {
   let isInjected = false;
-  let injectTimeout = null;
-  let injectMaxWait = null;   // garantiza inyección aunque el debounce siga rebotando
-  let observer = null;
+  let injectInterval = null;
 
   /* ═══════════════════════════════════════════════════════════════
-     INYECCIÓN CON REINTENTOS
+     INYECCIÓN CON POLLING
   ═══════════════════════════════════════════════════════════════ */
 
   async function tryInject() {
     // Si el sidebar ya existe en el DOM, no hacer nada
     if (document.getElementById('ycsm-sidebar')) {
       isInjected = true;
+      stopInjectPolling();
       return;
     }
 
     const success = await YCSM.sidebar.injectIntoYouTube();
     if (success) {
       isInjected = true;
+      stopInjectPolling();
     }
   }
 
-  function scheduleInject(delayMs = 300) {
-    clearTimeout(injectTimeout);
-    injectTimeout = setTimeout(fireInject, delayMs);
-    if (!injectMaxWait) {
-      injectMaxWait = setTimeout(fireInject, Math.max(delayMs, 1500));
-    }
-  }
-
-  function fireInject() {
-    clearTimeout(injectTimeout);
-    clearTimeout(injectMaxWait);
-    injectTimeout = null;
-    injectMaxWait = null;
+  function startInjectPolling() {
+    if (injectInterval) return;
+    injectInterval = setInterval(() => {
+      if (isInjected && document.getElementById('ycsm-sidebar')) {
+        // Sidebar presente → nada que hacer
+        return;
+      }
+      if (isInjected && !document.getElementById('ycsm-sidebar')) {
+        // YouTube eliminó nuestro sidebar → reinyectar
+        isInjected = false;
+      }
+      tryInject();
+    }, 500);
+    // Tick inmediato
     tryInject();
+  }
+
+  function stopInjectPolling() {
+    if (injectInterval) {
+      clearInterval(injectInterval);
+      injectInterval = null;
+    }
   }
 
   function isSubscriptionsPage() {
@@ -54,34 +62,35 @@
   }
 
   /* ═══════════════════════════════════════════════════════════════
-     MUTATION OBSERVER — supervisa el sidebar de YouTube
+     POLLING — supervisa el sidebar de YouTube y el botón de categorías
   ═══════════════════════════════════════════════════════════════ */
 
-  function setupObserver() {
-    if (observer) observer.disconnect();
+  // El polling del sidebar se inicia con startInjectPolling() y se detiene
+  // automáticamente una vez inyectado. Se reinicia en cada navegación SPA.
+  // Para el botón de categorías, se usa un interval separado más abajo.
 
-    const target = document.querySelector('ytd-app') || document.body;
+  let labelInterval = null;
 
-    observer = new MutationObserver(() => {
-      // Si nuestro sidebar fue eliminado por un re-render de YouTube, reinyectar
-      if (isInjected && !document.getElementById('ycsm-sidebar')) {
-        isInjected = false;
-        scheduleInject(400);
+  function startLabelPolling(delayMs = 500) {
+    stopLabelPolling();
+    labelInterval = setInterval(() => {
+      if (!shouldShowCategoryButton()) {
+        stopLabelPolling();
         return;
       }
-      // Si aún no hemos inyectado y el guide-content ya está disponible
-      if (!isInjected) {
-        scheduleInject(300);
+      if (document.getElementById('ycsm-label-btn')) {
+        stopLabelPolling();
+        return;
       }
-      if (shouldShowCategoryButton() && !document.getElementById('ycsm-label-btn')) {
-        YCSM.videoLabel?.scheduleInject(500);
-      }
-    });
+      YCSM.videoLabel?.scheduleInject(0);
+    }, delayMs);
+  }
 
-    observer.observe(target, {
-      childList: true,
-      subtree: true,
-    });
+  function stopLabelPolling() {
+    if (labelInterval) {
+      clearInterval(labelInterval);
+      labelInterval = null;
+    }
   }
 
   /* ═══════════════════════════════════════════════════════════════
@@ -134,13 +143,9 @@
 
   // YouTube emite este evento tras cada navegación interna
   document.addEventListener('yt-navigate-finish', () => {
-    // Resetear el maxWait para que empiece fresco en la nueva página
-    clearTimeout(injectMaxWait);
-    injectMaxWait = null;
     isInjected = false;
-    scheduleInject(600);
-    // Navbar de suscripciones: el módulo gestiona su propio observer
-    // y reacciona en cuanto aparece el grid, así que basta con dispararlo.
+    startInjectPolling();
+    // Navbar de suscripciones
     if (isSubscriptionsPage()) {
       YCSM.subscriptionsFilter?.injectSubscriptionsNav();
     } else {
@@ -149,19 +154,18 @@
     // Botón de categorías en página de vídeo o canal
     YCSM.videoLabel?.cleanup();
     if (shouldShowCategoryButton()) {
-      YCSM.videoLabel?.scheduleInject(900);
+      startLabelPolling(500);
     }
   });
 
   // Algunos cambios de ruta también emiten este evento
   document.addEventListener('yt-page-data-updated', () => {
-    if (!isInjected) scheduleInject(500);
+    if (!isInjected) startInjectPolling();
     if (isSubscriptionsPage()) {
       YCSM.subscriptionsFilter?.injectSubscriptionsNav();
     }
-    // Reintentar inyección del botón de categorías si la página cargó más contenido
     if (shouldShowCategoryButton()) {
-      YCSM.videoLabel?.scheduleInject(600);
+      startLabelPolling(500);
     }
   });
 
@@ -170,25 +174,14 @@
   ═══════════════════════════════════════════════════════════════ */
 
   async function init() {
-    setupObserver();
-
-    // Primer intento inmediato; si falla, los reintentos vienen del observer
-    await tryInject();
+    startInjectPolling();
 
     // Navbar de suscripciones en carga directa.
-    // reconcile() es idempotente y monta su propio observer; no necesita delays.
     if (isSubscriptionsPage()) YCSM.subscriptionsFilter?.injectSubscriptionsNav();
 
     // Botón de categorías en carga directa de página de vídeo o canal
     if (shouldShowCategoryButton()) {
-      YCSM.videoLabel?.scheduleInject(1200);
-    }
-
-    // Si tras 3 s todavía no inyectamos, reintentar (para cargas lentas)
-    if (!isInjected) {
-      setTimeout(async () => {
-        if (!isInjected) await tryInject();
-      }, 3000);
+      startLabelPolling(500);
     }
   }
 

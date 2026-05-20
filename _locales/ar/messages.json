@@ -215,6 +215,12 @@
       }
     }
   },
+  "channelsSelectedOne": {
+    "message": "قناة محددة"
+  },
+  "channelsSelectedMany": {
+    "message": "قنوات محددة"
+  },
   "today": {
     "message": "اليوم"
   },

@@ -215,6 +215,12 @@
       }
     }
   },
+  "channelsSelectedOne": {
+    "message": "个频道已选择"
+  },
+  "channelsSelectedMany": {
+    "message": "个频道已选择"
+  },
   "today": {
     "message": "今天"
   },

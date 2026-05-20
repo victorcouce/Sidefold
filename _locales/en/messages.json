@@ -215,6 +215,12 @@
       }
     }
   },
+  "channelsSelectedOne": {
+    "message": "channel selected"
+  },
+  "channelsSelectedMany": {
+    "message": "channels selected"
+  },
   "today": {
     "message": "today"
   },

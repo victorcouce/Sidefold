@@ -400,6 +400,11 @@ input, select { font-family: inherit; color: inherit; }
 .check-box-head { width: 18px; height: 18px; }
 
 .row-meta { min-width: 0; }
+.row-avatar-link { display: flex; flex-shrink: 0; text-decoration: none; }
+.row-name-link {
+  color: inherit; text-decoration: none;
+}
+.row-name-link:hover { text-decoration: underline; }
 .row-name {
   font-size: 14px; font-weight: 500;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
