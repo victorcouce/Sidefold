@@ -296,8 +296,7 @@
   }
 
   function handleMessage(e) {
-    if (e.origin !== 'https://www.youtube.com') return;
-    if (!e?.data) return;
+    if (!e?.data || !e.origin.startsWith('chrome-extension://')) return;
     if (e.data.type === 'YCSM_PANEL_CLOSE') close();
     if (e.data.type === 'YCSM_NAVIGATE') {
       if (e.data.href) window.open(e.data.href, '_blank');
@@ -307,32 +306,35 @@
   async function open() {
     if (overlayEl) return;
 
-    // 1) Fetch subscriptions — robust path first
+    // Show the overlay immediately — panel-ui.js renders with cached data
+    // and updates automatically via storage.onChange when fresh data arrives.
+    overlayEl = buildOverlay();
+    document.body.appendChild(overlayEl);
+    _messageListener = handleMessage;
+    window.addEventListener('message', _messageListener);
+    document.addEventListener('keydown', handleEscape);
+
+    // Fetch subscriptions in background
+    // 1) Network fetch — most reliable, gets all subscriptions
     let channels = await fetchAllSubscriptions();
 
-    // 2) Fallback to cached list
+    // 2) Fallback to cached list (fetch failed or returned empty)
     if (channels.length === 0) {
       const cached = await YCSM.storage.getCachedChannels();
       channels = cached.channels || [];
     }
 
-    // 3) Last resort: DOM scrape (may force YT to expand its sidebar)
+    // 3) Last resort: DOM scrape
     if (channels.length === 0) {
       await expandYouTubeSubscriptions();
       channels = scrapeChannelsFromDOM();
     }
 
+    // Writing to storage triggers storage.onChange in panel-ui.js → re-render
     if (channels.length > 0) {
       await migrateAssignmentIds(channels);
       await YCSM.storage.cacheChannels(channels);
     }
-
-    overlayEl = buildOverlay();
-    document.body.appendChild(overlayEl);
-
-    _messageListener = handleMessage;
-    window.addEventListener('message', _messageListener);
-    document.addEventListener('keydown', handleEscape);
   }
 
   function close() {

@@ -111,6 +111,7 @@
     creatingCat: false,
     newCatName: '',
     drag: null,            // { id, originIndex, insertIndex, ghostX, ghostY, ghostW, started }
+    loading: true,         // true until first channel data arrives from storage
   };
 
   const ROW_REFS = new Map();
@@ -129,6 +130,7 @@
     }
     const cached = await storage.getCachedChannels();
     state.channels = cached.channels || [];
+    if (state.channels.length > 0) state.loading = false;
   }
 
   async function setLayout(layout) {
@@ -541,8 +543,14 @@
 
   function buildChannelArea(filtered) {
     const area = h('div', { class: 'channel-area' });
-    if (filtered.length === 0)     area.appendChild(buildEmpty());
-    else if (state.layout === 'list') {
+    if (state.loading && state.channels.length === 0) {
+      area.appendChild(h('div', { class: 'loading-state' },
+        h('div', { class: 'loading-spinner' }),
+        h('div', { class: 'loading-text', i18n: 'loadingChannels' }, 'Cargando canales...')
+      ));
+    } else if (filtered.length === 0) {
+      area.appendChild(buildEmpty());
+    } else if (state.layout === 'list') {
       area.appendChild(buildListHead(filtered));
       const list = h('div', { class: 'list' });
       filtered.forEach((ch) => list.appendChild(buildRow(ch)));
@@ -744,7 +752,14 @@
   function openPicker(picker) {
     state.picker = { ...picker, query: '' };
     render();
-    setTimeout(() => document.getElementById('picker-search')?.focus(), 0);
+    setTimeout(() => {
+      const pickerEl = document.querySelector('.picker');
+      if (pickerEl) {
+        const rect = pickerEl.getBoundingClientRect();
+        if (rect.left < 8) pickerEl.classList.add('is-left');
+      }
+      document.getElementById('picker-search')?.focus();
+    }, 0);
     const off = (e) => {
       const root = document.querySelector('.picker');
       if (root && !root.contains(e.target) && !e.target.closest('.add-cat-btn, .btn-primary')) {
