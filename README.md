@@ -1,78 +1,100 @@
-# 📂 YouTube Category Manager
+# 📂 Channel Folders for YouTube
 
-Extensión de Chrome (Manifest V3) que organiza tus suscripciones de YouTube en categorías personalizadas directamente en el sidebar.
+A Chrome extension (Manifest V3) that organizes your YouTube subscriptions into custom folders, directly in the sidebar.
 
-## ✨ Funcionalidades
+## ✨ Features
 
-- **Sidebar con categorías** — acordeón colapsable integrado en el sidebar de YouTube con los canales agrupados por categoría
-- **Panel de organización** — modal flotante con todos tus canales suscritos para asignarlos a categorías de forma rápida
-- **Filtrado por categoría** — haz clic en una categoría para ver solo los canales de esa categoría
-- **Búsqueda** — filtra canales por nombre en tiempo real, combinable con el filtro de categoría
-- **Ordenación** — por actividad reciente (último vídeo publicado) o alfabética A→Z
-- **Fecha del último vídeo** — visible en cada card, cargada de forma perezosa vía feed RSS
-- **Punto azul** — indica canales con vídeos nuevos sin ver desde tu última visita
-- **Crear y eliminar categorías** — directamente desde el panel, con nombre, emoji y color
-- **Asignación masiva** — modo multi-selección para asignar varios canales a una categoría a la vez
-- **Abrir canal** — clic en la card abre el canal en una pestaña nueva
-- **Dark mode** — compatible con el tema oscuro de YouTube
+- **Category sidebar** — folder-based sidebar injected into YouTube, grouping your subscribed channels by category
+- **Bulk organizer panel** — floating modal with all your subscribed channels for quick assignment to folders
+- **Category filter** — click a folder to see only the channels in that category, on `/feed/subscriptions`
+- **Live search** — filter channels by name in real time, combinable with the category filter
+- **Sort** — by most recent activity or alphabetically A→Z
+- **Create & delete folders** — directly from the panel or popup, with a custom name and color
+- **Bulk assign** — multi-select mode to assign multiple channels to a category at once
+- **Open channel** — click a channel card to open it in a new tab
+- **Dark mode** — fully compatible with YouTube's dark theme
+- **Sync across devices** — categories and assignments sync via Chrome Sync (your own Google account)
 
-## 🚀 Instalación
+## 🚀 Installation (developer mode)
 
-1. Clona o descarga este repositorio
-2. Abre Chrome y ve a `chrome://extensions`
-3. Activa el **Modo desarrollador** (esquina superior derecha)
-4. Haz clic en **Cargar descomprimida** y selecciona la carpeta del proyecto
-5. Navega a [youtube.com](https://www.youtube.com) — el sidebar y el botón del panel aparecerán automáticamente
+1. Clone or download this repository
+2. Open Chrome and go to `chrome://extensions`
+3. Enable **Developer mode** (top-right toggle)
+4. Click **Load unpacked** and select the project folder
+5. Navigate to [youtube.com](https://www.youtube.com) — the sidebar and organizer button will appear automatically
 
-## 🗂 Estructura del proyecto
+## 🗂 Project structure
 
 ```
-├── manifest.json       # Configuración de la extensión (MV3)
-├── content.js          # Controlador principal — ciclo de vida e inyección
-├── sidebar.js          # Sidebar con categorías acordeón
-├── sidebar.css         # Estilos del sidebar y del panel
-├── panel.js            # Panel flotante de organización masiva
-├── storage.js          # Capa de abstracción sobre chrome.storage
-├── background.js       # Service worker
-├── popup.html/js/css   # Popup de la extensión (configuración básica)
-└── _locales/           # Internacionalización (en, es, ar, hi, id, pt_BR, zh_CN)
+├── manifest.json
+├── assets/
+│   ├── icons/              # Extension icons (16, 32, 48, 128 px)
+│   └── fonts/              # Roboto font (self-hosted)
+├── _locales/               # i18n message files (en, es, ar, hi, id, pt_BR, zh_CN)
+├── docs/
+│   └── privacy.html        # Privacy policy (served via GitHub Pages)
+└── src/
+    ├── background/
+    │   └── background.js   # Service worker — message relay
+    ├── content/
+    │   ├── content.js      # Orchestrator: SPA navigation, MutationObserver, injection
+    │   ├── sidebar.js      # Category accordion sidebar injected into YouTube
+    │   ├── sidebar.css
+    │   ├── subscriptions-filter.js  # Category navbar on /feed/subscriptions
+    │   └── video-label.js  # Categorize button on watch/channel pages
+    ├── panel/
+    │   ├── panel.js        # Content script bridge: fetches subscriptions, mounts iframe
+    │   ├── panel-ui.js     # Panel UI rendered inside the iframe
+    │   ├── panel.html
+    │   └── panel.css
+    ├── popup/
+    │   ├── popup.html
+    │   ├── popup.js
+    │   └── popup.css
+    └── shared/
+        ├── i18n.js         # chrome.i18n wrapper + data-i18n attribute resolver
+        ├── storage.js      # chrome.storage abstraction with in-memory cache
+        └── utils.js        # Shared utilities
 ```
 
-## 🔧 Permisos
+## 🔧 Permissions
 
-| Permiso | Motivo |
+| Permission | Reason |
 |---|---|
-| `storage` | Guardar categorías, asignaciones y configuración |
-| `host_permissions: youtube.com` | Inyectar el sidebar y el panel en YouTube |
+| `storage` | Save folders, channel assignments and settings |
+| `host_permissions: youtube.com` | Inject the sidebar and panel into YouTube pages |
 
-No se solicitan permisos de lectura de historial, cookies ni datos sensibles.
+No history, cookies, identity or sensitive data is requested.
 
-## 🛠 Desarrollo
+## 🛠 Development
 
-Los archivos se cargan directamente como content scripts, sin bundler. Cualquier cambio en los archivos requiere recargar la extensión en `chrome://extensions`.
+Files are loaded directly as content scripts — no bundler required. After any JS/CSS change, reload the extension card at `chrome://extensions`, then hard-reload the YouTube tab (`Cmd+Shift+R`).
 
-Para validar la sintaxis de JavaScript:
+**Validate JS syntax:**
 
 ```bash
-node --check panel.js
-node --check sidebar.js
-node --check storage.js
+node --check src/content/content.js
+node --check src/content/sidebar.js
+node --check src/panel/panel.js
+node --check src/shared/storage.js
+node --check src/shared/i18n.js
 ```
 
-## 📝 Notas técnicas
+## 📝 Technical notes
 
-- **Fetch de suscripciones** — se obtienen via `fetch('/feed/channels')` parseando `ytInitialData`, lo que garantiza la lista completa sin depender del DOM del sidebar
-- **Fechas de último vídeo** — se consultan en paralelo (máx. 15 peticiones) via feed RSS de YouTube (`/feeds/videos.xml?channel_id=...`)
-- **Caché en memoria** — `storage.js` usa un caché en memoria para evitar lecturas repetidas a `chrome.storage`
-- **IDs canónicos** — migración automática de IDs legacy (`/@handle`) a IDs canónicos (`UCxxxxx`) al abrir el panel
+- **Subscription fetching** — subscriptions are retrieved via `fetch('/feed/channels')`, parsing the `ytInitialData` JSON embedded in the page HTML. This avoids fragile DOM scraping and returns the full list reliably. Falls back to DOM scraping and a local cache if the fetch fails.
+- **YouTube SPA navigation** — YouTube never does full page loads. `content.js` listens to `yt-navigate-finish` to reset injection state and re-inject after each navigation.
+- **MutationObserver fallback** — if YouTube re-renders its sidebar and removes `#ycsm-sidebar`, the observer triggers re-injection automatically.
+- **In-memory cache** — `storage.js` keeps a module-level `_memCache` to avoid repeated reads to `chrome.storage` on every sidebar render.
+- **Canonical channel IDs** — legacy IDs like `/@handle` are automatically migrated to canonical `UCxxxxx` IDs when the panel opens.
+- **Chrome Sync** — categories and assignments are stored in `chrome.storage.sync` and sync across the user's devices via their own Google account. The subscription list cache uses `chrome.storage.local`.
 
-## 🔒 Privacidad
+## 🔒 Privacy
 
-Esta extensión no recopila ningún dato personal. Toda la información (categorías y asignaciones) se guarda localmente en `chrome.storage` y, si Chrome Sync está activo, se sincroniza entre tus dispositivos a través de tu propia cuenta de Google.
+This extension collects no personal data. All information (folders and assignments) is stored locally via `chrome.storage` and, if Chrome Sync is enabled, synced across your devices through your own Google account. No external servers, no analytics, no tracking.
 
-Consulta la política de privacidad completa en:
-**https://victorcouce.github.io/YTCategoryManager/privacy**
+Full privacy policy: **https://victorcouce.github.io/YTCategoryManager/privacy**
 
-## 📄 Licencia
+## 📄 License
 
 MIT
