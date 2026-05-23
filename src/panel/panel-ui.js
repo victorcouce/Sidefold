@@ -237,13 +237,21 @@
 
   function buildModal() {
     const filtered = filteredChannels();
-    return h('div', { class: 'modal-wrap' },
+    const modalWrap = h('div', { class: 'modal-wrap' },
       h('div', { class: 'modal' },
         buildHead(),
         h('div', { class: 'modal-body' }, buildSidebar(), buildMain(filtered)),
         buildSelectBar()
       )
     );
+    // The bulk picker must live outside select-bar: select-bar uses CSS transform
+    // for its slide-in animation, which makes it a containing block for
+    // position:fixed descendants — breaking the fixed positioning of the picker.
+    // Attaching to modal-wrap (no transform) lets the JS correctly use fixed coords.
+    if (state.picker?.kind === 'bulk') {
+      modalWrap.appendChild(buildPicker(null, null));
+    }
+    return modalWrap;
   }
 
   function buildHead() {
@@ -755,8 +763,38 @@
     setTimeout(() => {
       const pickerEl = document.querySelector('.picker');
       if (pickerEl) {
-        const rect = pickerEl.getBoundingClientRect();
-        if (rect.left < 8) pickerEl.classList.add('is-left');
+        // For the bulk picker the element lives at modal-wrap level (not inside the
+        // button's wrapper), so parentElement is not the trigger. Query the button
+        // directly; fall back to parentElement for per-channel pickers.
+        const isBulkPicker = state.picker?.kind === 'bulk';
+        const triggerEl = isBulkPicker
+          ? document.querySelector('.assign-cat-icon-btn')
+          : pickerEl.parentElement;
+        const triggerRect = triggerEl ? triggerEl.getBoundingClientRect() : pickerEl.getBoundingClientRect();
+        const PICKER_H = 320;
+        const PICKER_W = 240;
+        // Switch to fixed so parent overflow:hidden cannot clip it
+        pickerEl.style.position = 'fixed';
+        // Vertical: bulk picker (select-bar at bottom) always opens upward
+        if (isBulkPicker) {
+          pickerEl.style.top    = 'auto';
+          pickerEl.style.bottom = (window.innerHeight - triggerRect.top + 6) + 'px';
+        } else {
+          // Per-channel pickers: open downward if enough room, otherwise upward
+          const spaceBelow = window.innerHeight - triggerRect.bottom - 8;
+          if (spaceBelow >= Math.min(PICKER_H, 160) || spaceBelow >= triggerRect.top - 8) {
+            pickerEl.style.top    = (triggerRect.bottom + 6) + 'px';
+            pickerEl.style.bottom = 'auto';
+          } else {
+            pickerEl.style.top    = 'auto';
+            pickerEl.style.bottom = (window.innerHeight - triggerRect.top + 6) + 'px';
+          }
+        }
+        // Horizontal: right-align to trigger, clamped to viewport
+        let left = triggerRect.right - PICKER_W;
+        left = Math.max(8, Math.min(left, window.innerWidth - PICKER_W - 8));
+        pickerEl.style.left  = left + 'px';
+        pickerEl.style.right = 'auto';
       }
       document.getElementById('picker-search')?.focus();
     }, 0);
@@ -894,11 +932,6 @@
         icon(ICONS.tag, { size: 16, sw: 2 })
       )
     );
-    if (state.picker?.kind === 'bulk') {
-      const pop = buildPicker(null, null);
-      pop.classList.add('is-up');
-      wrap.appendChild(pop);
-    }
     bar.appendChild(h('div', { class: 'select-bar-actions' }, wrap));
     return bar;
   }
