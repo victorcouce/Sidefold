@@ -4,12 +4,7 @@
  */
 
 chrome.runtime.onInstalled.addListener(({ reason }) => {
-  if (reason === 'install') {
-    console.log('[YCSM] Extensión instalada correctamente.');
-  }
-  if (reason === 'update') {
-    console.log('[YCSM] Extensión actualizada.');
-  }
+  // Extension installed or updated
 });
 
 /**

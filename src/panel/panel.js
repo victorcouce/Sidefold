@@ -248,7 +248,6 @@
 
     if (dirty) {
       await YCSM.storage.saveChannelAssignments(assignments);
-      console.log('[YCSM] Asignaciones migradas al ID canónico.');
     }
   }
 
