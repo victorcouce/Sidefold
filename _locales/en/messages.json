@@ -383,13 +383,27 @@
   },
   "emptySearchTitle": {
     "message": "No results for \"$QUERY$\"",
-    "placeholders": { "query": { "content": "$1" } }
+    "placeholders": {
+      "query": {
+        "content": "$1"
+      }
+    }
   },
   "emptyCategoryTitle": {
     "message": "«$CATEGORY$» is empty",
-    "placeholders": { "category": { "content": "$1" } }
+    "placeholders": {
+      "category": {
+        "content": "$1"
+      }
+    }
   },
   "clearSelection": {
     "message": "Clear selection"
+  },
+  "exportBackup": {
+    "message": "Export backup"
+  },
+  "importBackup": {
+    "message": "Import backup"
   }
 }

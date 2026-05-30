@@ -223,6 +223,17 @@ input, select { font-family: inherit; color: inherit; }
   text-transform: uppercase; letter-spacing: 0.08em;
   color: var(--text-dimmer); font-weight: 500;
 }
+.side-action-btn {
+  background: transparent; border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 4px;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 2px;
+}
+.side-action-btn:hover { background: var(--hover); color: var(--text); }
+
 .side-edit-toggle {
   background: transparent; border: none;
   color: var(--text-dim);
