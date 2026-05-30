@@ -1,9 +1,14 @@
 /**
  * storage.js — Capa de abstracción sobre chrome.storage
  * Compatible con content scripts y páginas de extensión (popup, panel).
+ * Migrado a chrome.storage.local (v1.1.0+) con soporte para export/import manual.
  */
 (function () {
   if (!window.YCSM) window.YCSM = {};
+
+  const SCHEMA_VERSION = 2;
+  const SCHEMA_KEY = '__schema_version__';
+  const MIGRATION_FLAG_KEY = '__migrated_from_sync_v2__';
 
   const DEFAULT_SETTINGS = {
     showUncategorized: true,
@@ -36,23 +41,7 @@
    * puede rechazarse con "Extension context invalidated" sin ser capturada.
    * Usando solo Promises y encadenando .catch() evitamos ese rechazo no manejado.
    */
-  function syncGet(keys) {
-    if (!isContextValid()) return Promise.resolve({});
-    return chrome.storage.sync.get(keys).catch((e) => {
-      console.warn('[YCSM] storage.sync.get error:', e.message);
-      return {};
-    });
-  }
-
-  function syncSet(items) {
-    if (!isContextValid()) return Promise.resolve(false);
-    return chrome.storage.sync.set(items).then(() => true).catch((e) => {
-      console.warn('[YCSM] storage.sync.set error:', e.message);
-      return false;
-    });
-  }
-
-  function localGet(keys) {
+  function storageGet(keys) {
     if (!isContextValid()) return Promise.resolve({});
     return chrome.storage.local.get(keys).catch((e) => {
       console.warn('[YCSM] storage.local.get error:', e.message);
@@ -60,12 +49,20 @@
     });
   }
 
-  function localSet(items) {
+  function storageSet(items) {
     if (!isContextValid()) return Promise.resolve(false);
     return chrome.storage.local.set(items).then(() => true).catch((e) => {
       console.warn('[YCSM] storage.local.set error:', e.message);
       return false;
     });
+  }
+
+  function localGet(keys) {
+    return storageGet(keys);
+  }
+
+  function localSet(items) {
+    return storageSet(items);
   }
 
   /* ─── Caché en memoria ─────────────────────────────────────────── */
@@ -81,7 +78,7 @@
 
   async function getAll() {
     if (_memCache) return _memCache;
-    const data = await syncGet(['categories', 'channelAssignments', 'settings']);
+    const data = await storageGet(['categories', 'channelAssignments', 'settings']);
     _memCache = {
       categories: data.categories || {},
       channelAssignments: data.channelAssignments || {},
@@ -109,17 +106,17 @@
 
   function saveCategories(categories) {
     if (_memCache) _memCache.categories = categories;
-    return syncSet({ categories });
+    return storageSet({ categories });
   }
 
   function saveChannelAssignments(channelAssignments) {
     if (_memCache) _memCache.channelAssignments = channelAssignments;
-    return syncSet({ channelAssignments });
+    return storageSet({ channelAssignments });
   }
 
   function saveSettings(settings) {
     if (_memCache) _memCache.settings = settings;
-    return syncSet({ settings });
+    return storageSet({ settings });
   }
 
   /* ─── Canales en caché (storage local — 5 MB) ──────────────────── */
@@ -236,8 +233,7 @@
   function onChange(callback) {
     try {
       chrome.storage.onChanged.addListener((changes, areaName) => {
-        if (areaName === 'sync') {
-          // Invalidar caché cuando cambia el storage remoto (otro dispositivo / popup)
+        if (areaName === 'local') {
           invalidateCache();
           try { callback(changes); } catch (e) {
             console.warn('[YCSM] onChange callback error:', e.message);
@@ -247,6 +243,82 @@
     } catch (e) {
       console.warn('[YCSM] onChange registration error:', e.message);
     }
+  }
+
+  /* ─── Export / Import ──────────────────────────────────────────── */
+
+  async function exportAll() {
+    const all = await storageGet(null);
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      exportedAt: new Date().toISOString(),
+      appVersion: chrome.runtime.getManifest().version,
+      data: all,
+    };
+  }
+
+  async function importAll(payload, { mode = 'replace' } = {}) {
+    if (!payload || typeof payload !== 'object' || !payload.data) {
+      throw new Error('Invalid import payload: missing "data".');
+    }
+    if (payload.schemaVersion > SCHEMA_VERSION) {
+      throw new Error(
+        `Import schemaVersion ${payload.schemaVersion} > current ${SCHEMA_VERSION}. ` +
+        `Update the extension before importing.`
+      );
+    }
+
+    if (mode === 'replace') {
+      await chrome.storage.local.clear();
+    }
+
+    await storageSet(payload.data);
+    invalidateCache();
+
+    if (chrome.runtime.lastError) {
+      throw new Error(`Import failed: ${chrome.runtime.lastError.message}`);
+    }
+
+    return { restoredKeys: Object.keys(payload.data).length };
+  }
+
+  /* ─── Migración desde chrome.storage.sync (one-shot) ──────────────── */
+
+  async function migrateFromSyncIfNeeded() {
+    const flag = await storageGet(MIGRATION_FLAG_KEY);
+    if (flag[MIGRATION_FLAG_KEY] === true) {
+      return { migrated: false, reason: 'already_migrated' };
+    }
+
+    const syncData = await chrome.storage.sync.get(null);
+    const syncKeys = Object.keys(syncData);
+
+    if (syncKeys.length === 0) {
+      await storageSet({ [MIGRATION_FLAG_KEY]: true, [SCHEMA_KEY]: SCHEMA_VERSION });
+      return { migrated: false, reason: 'no_sync_data' };
+    }
+
+    // Copiar sync → local
+    await storageSet(syncData);
+    if (chrome.runtime.lastError) {
+      throw new Error(`Migration write to local failed: ${chrome.runtime.lastError.message}`);
+    }
+
+    // Verificar que se escribió todo
+    const localAfter = await storageGet(syncKeys);
+    for (const k of syncKeys) {
+      if (JSON.stringify(localAfter[k]) !== JSON.stringify(syncData[k])) {
+        throw new Error(`Migration verification failed for key ${k}.`);
+      }
+    }
+
+    // Marcar flag antes de tocar sync
+    await storageSet({ [MIGRATION_FLAG_KEY]: true, [SCHEMA_KEY]: SCHEMA_VERSION });
+
+    // Comentado por seguridad; habilitar tras 2 releases estables
+    // await chrome.storage.sync.clear();
+
+    return { migrated: true, keysMigrated: syncKeys.length };
   }
 
   /* ─── Export ────────────────────────────────────────────────────── */
@@ -270,5 +342,15 @@
     toggleChannelCategory,
     onChange,
     invalidateCache,
+    exportAll,
+    importAll,
+    migrateFromSyncIfNeeded,
   };
+
+  // Ejecutar migración automáticamente si es necesario (one-shot en contexto valid)
+  if (isContextValid()) {
+    migrateFromSyncIfNeeded().catch((e) => {
+      console.error('[Sidefold] Automatic migration failed:', e);
+    });
+  }
 })();

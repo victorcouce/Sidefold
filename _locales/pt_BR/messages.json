@@ -383,13 +383,27 @@
   },
   "emptySearchTitle": {
     "message": "Sem resultados para \"$QUERY$\"",
-    "placeholders": { "query": { "content": "$1" } }
+    "placeholders": {
+      "query": {
+        "content": "$1"
+      }
+    }
   },
   "emptyCategoryTitle": {
     "message": "«$CATEGORY$» está vazia",
-    "placeholders": { "category": { "content": "$1" } }
+    "placeholders": {
+      "category": {
+        "content": "$1"
+      }
+    }
   },
   "clearSelection": {
     "message": "Limpar seleção"
+  },
+  "exportBackup": {
+    "message": "Exportar backup"
+  },
+  "importBackup": {
+    "message": "Importar backup"
   }
 }

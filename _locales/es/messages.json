@@ -391,5 +391,11 @@
   },
   "clearSelection": {
     "message": "Borrar selección"
+  },
+  "exportBackup": {
+    "message": "Exportar copia de seguridad"
+  },
+  "importBackup": {
+    "message": "Importar copia de seguridad"
   }
 }

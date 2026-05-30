@@ -81,6 +81,8 @@
     tag:        '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
     folderPlus: '<path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>',
     globe:      '<circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/><path d="M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+    download:   '<path d="M12 2v12m6-6l-6 6-6-6"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>',
+    upload:     '<path d="M12 22v-12m-6 6l6-6 6 6"/><path d="M21 9V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v4"/>',
   };
 
   /* ─── Category color helpers ─────────────────────────────────── */
@@ -191,6 +193,42 @@
     await refreshFromStorage();
   }
 
+  async function actExport() {
+    try {
+      const payload = await storage.exportAll();
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `sidefold-backup-${ts}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert('Export failed: ' + e.message);
+    }
+  }
+
+  async function actImport(file, mode) {
+    try {
+      const text = await file.text();
+      let payload;
+      try {
+        payload = JSON.parse(text);
+      } catch (e) {
+        throw new Error('Invalid JSON file.');
+      }
+      const { restoredKeys } = await storage.importAll(payload, { mode });
+      await refreshFromStorage();
+      render();
+      alert(`Restored ${restoredKeys} keys. Reload the page to see changes.`);
+    } catch (e) {
+      alert('Import failed: ' + e.message);
+    }
+  }
+
   function channelCats(ch) {
     const ids = state.assignments[ch.id] || [];
     return ids.map((id) => state.categories.find((c) => c.id === id)).filter(Boolean);
@@ -281,14 +319,47 @@
     ));
 
     const section = h('div', { class: 'side-section' });
-    section.appendChild(h('div', { class: 'side-section-head' },
-      h('span', { i18n: 'myCategories' }, 'Mis categorías'),
-      h('button', {
-        class: 'side-edit-toggle' + (state.manage ? ' is-on' : ''),
-        i18n: state.manage ? 'done' : 'edit',
-        onclick: () => { state.manage = !state.manage; state.colorEditId = null; state.editingId = null; render(); },
-      }, state.manage ? 'Listo' : 'Editar')
-    ));
+    const headDiv = h('div', { class: 'side-section-head' });
+    headDiv.appendChild(h('span', { i18n: 'myCategories' }, 'Mis categorías'));
+
+    // Export button
+    headDiv.appendChild(h('button', {
+      class: 'side-action-btn',
+      i18nTitle: 'exportBackup',
+      title: 'Exportar copia de seguridad',
+      onclick: actExport,
+    }, icon(ICONS.download, { size: 16, sw: 2 })));
+
+    // Import button
+    const importInput = h('input', {
+      type: 'file',
+      accept: 'application/json',
+      style: { display: 'none' },
+      onchange: (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+          const mode = confirm('¿Reemplazar todos los datos? (Cancelar = combinar)') ? 'replace' : 'merge';
+          actImport(file, mode);
+        }
+        e.target.value = '';
+      },
+    });
+    headDiv.appendChild(importInput);
+    headDiv.appendChild(h('button', {
+      class: 'side-action-btn',
+      i18nTitle: 'importBackup',
+      title: 'Importar copia de seguridad',
+      onclick: () => importInput.click(),
+    }, icon(ICONS.upload, { size: 16, sw: 2 })));
+
+    // Edit/Done button
+    headDiv.appendChild(h('button', {
+      class: 'side-edit-toggle' + (state.manage ? ' is-on' : ''),
+      i18n: state.manage ? 'done' : 'edit',
+      onclick: () => { state.manage = !state.manage; state.colorEditId = null; state.editingId = null; render(); },
+    }, state.manage ? 'Listo' : 'Editar'));
+
+    section.appendChild(headDiv);
 
     const nav = h('nav', { class: 'side-nav' });
     SIDEBAR_NAV = nav;
@@ -1074,4 +1145,5 @@
   // emptySearchSub
   // emptyUncategorizedTitle / emptyUncategorizedSub
   // emptyCategorySub
+  // exportBackup / importBackup
 })();
