@@ -383,13 +383,27 @@
   },
   "emptySearchTitle": {
     "message": "\"$QUERY$\" 无结果",
-    "placeholders": { "query": { "content": "$1" } }
+    "placeholders": {
+      "query": {
+        "content": "$1"
+      }
+    }
   },
   "emptyCategoryTitle": {
     "message": "«$CATEGORY$» 为空",
-    "placeholders": { "category": { "content": "$1" } }
+    "placeholders": {
+      "category": {
+        "content": "$1"
+      }
+    }
   },
   "clearSelection": {
     "message": "清除选择"
+  },
+  "exportBackup": {
+    "message": "导出备份"
+  },
+  "importBackup": {
+    "message": "导入备份"
   }
 }
