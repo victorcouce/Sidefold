@@ -20,6 +20,12 @@
     return 'cat_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
   }
 
+  function scopedKey(key) {
+    const accountId = YCSM.account?.getAccountId();
+    if (!accountId) return key;
+    return `account:${accountId}:${key}`;
+  }
+
   /* ─── Helpers internos ─────────────────────────────────────────── */
 
   /**
@@ -78,11 +84,13 @@
 
   async function getAll() {
     if (_memCache) return _memCache;
-    const data = await storageGet(['categories', 'channelAssignments', 'settings']);
+    const sk = (k) => scopedKey(k);
+    const keys = [sk('categories'), sk('channelAssignments'), sk('settings')];
+    const data = await storageGet(keys);
     _memCache = {
-      categories: data.categories || {},
-      channelAssignments: data.channelAssignments || {},
-      settings: { ...DEFAULT_SETTINGS, ...(data.settings || {}) },
+      categories: data[sk('categories')] || {},
+      channelAssignments: data[sk('channelAssignments')] || {},
+      settings: { ...DEFAULT_SETTINGS, ...(data[sk('settings')] || {}) },
     };
     return _memCache;
   }
@@ -106,28 +114,34 @@
 
   function saveCategories(categories) {
     if (_memCache) _memCache.categories = categories;
-    return storageSet({ categories });
+    return storageSet({ [scopedKey('categories')]: categories });
   }
 
   function saveChannelAssignments(channelAssignments) {
     if (_memCache) _memCache.channelAssignments = channelAssignments;
-    return storageSet({ channelAssignments });
+    return storageSet({ [scopedKey('channelAssignments')]: channelAssignments });
   }
 
   function saveSettings(settings) {
     if (_memCache) _memCache.settings = settings;
-    return storageSet({ settings });
+    return storageSet({ [scopedKey('settings')]: settings });
   }
 
   /* ─── Canales en caché (storage local — 5 MB) ──────────────────── */
 
   function cacheChannels(channels) {
-    return localSet({ cachedChannels: channels, channelsCachedAt: Date.now() });
+    return localSet({
+      [scopedKey('cachedChannels')]: channels,
+      [scopedKey('channelsCachedAt')]: Date.now(),
+    });
   }
 
   async function getCachedChannels() {
-    const data = await localGet(['cachedChannels', 'channelsCachedAt']);
-    return { channels: data.cachedChannels || [], cachedAt: data.channelsCachedAt || 0 };
+    const data = await localGet([scopedKey('cachedChannels'), scopedKey('channelsCachedAt')]);
+    return {
+      channels: data[scopedKey('cachedChannels')] || [],
+      cachedAt: data[scopedKey('channelsCachedAt')] || 0,
+    };
   }
 
   /* ─── CRUD Categorías ──────────────────────────────────────────── */
@@ -233,11 +247,23 @@
   function onChange(callback) {
     try {
       chrome.storage.onChanged.addListener((changes, areaName) => {
-        if (areaName === 'local') {
-          invalidateCache();
-          try { callback(changes); } catch (e) {
-            console.warn('[YCSM] onChange callback error:', e.message);
-          }
+        if (areaName !== 'local') return;
+        const accountId = YCSM.account?.getAccountId();
+        if (accountId) {
+          const prefix = `account:${accountId}:`;
+          const relevant = Object.keys(changes).some((k) => k.startsWith(prefix));
+          if (!relevant) return;
+        }
+        invalidateCache();
+        const cleanChanges = {};
+        for (const [k, v] of Object.entries(changes)) {
+          const cleanKey = k.replace(/^account:[^:]+:/, '');
+          cleanChanges[cleanKey] = v;
+        }
+        try {
+          callback(cleanChanges);
+        } catch (e) {
+          console.warn('[YCSM] onChange callback error:', e.message);
         }
       });
     } catch (e) {
@@ -248,12 +274,20 @@
   /* ─── Export / Import ──────────────────────────────────────────── */
 
   async function exportAll() {
-    const all = await storageGet(null);
+    const keys = ['categories', 'channelAssignments', 'settings', 'cachedChannels', 'channelsCachedAt'];
+    const scopedKeys = keys.map((k) => scopedKey(k));
+    const raw = await storageGet(scopedKeys);
+    const data = {};
+    for (const k of keys) {
+      const sk = scopedKey(k);
+      if (raw[sk] !== undefined) data[k] = raw[sk];
+    }
     return {
       schemaVersion: SCHEMA_VERSION,
       exportedAt: new Date().toISOString(),
       appVersion: chrome.runtime.getManifest().version,
-      data: all,
+      accountId: YCSM.account?.getAccountId() || null,
+      data,
     };
   }
 
@@ -269,10 +303,15 @@
     }
 
     if (mode === 'replace') {
-      await chrome.storage.local.clear();
+      const keys = ['categories', 'channelAssignments', 'settings', 'cachedChannels', 'channelsCachedAt'];
+      await chrome.storage.local.remove(keys.map((k) => scopedKey(k)));
     }
 
-    await storageSet(payload.data);
+    const scoped = {};
+    for (const [k, v] of Object.entries(payload.data)) {
+      scoped[scopedKey(k)] = v;
+    }
+    await storageSet(scoped);
     invalidateCache();
 
     if (chrome.runtime.lastError) {
@@ -321,6 +360,39 @@
     return { migrated: true, keysMigrated: syncKeys.length };
   }
 
+  /* ─── Migración a almacenamiento por cuenta (one-shot) ──────────────── */
+
+  const ACCOUNT_SCOPE_FLAG = '__migrated_account_scope__';
+
+  async function migrateToAccountScope() {
+    const flag = await storageGet(ACCOUNT_SCOPE_FLAG);
+    if (flag[ACCOUNT_SCOPE_FLAG]) return;
+
+    const accountId = YCSM.account?.getAccountId();
+    if (!accountId) return;
+
+    const oldKeys = ['categories', 'channelAssignments', 'settings', 'cachedChannels', 'channelsCachedAt'];
+    const oldData = await storageGet(oldKeys);
+
+    const hasData = oldKeys.some((k) => oldData[k] !== undefined);
+    if (!hasData) {
+      await storageSet({ [ACCOUNT_SCOPE_FLAG]: true });
+      return;
+    }
+
+    const scoped = {};
+    for (const k of oldKeys) {
+      if (oldData[k] !== undefined) {
+        scoped[`account:${accountId}:${k}`] = oldData[k];
+      }
+    }
+    await storageSet(scoped);
+
+    await chrome.storage.local.remove(oldKeys);
+    await storageSet({ [ACCOUNT_SCOPE_FLAG]: true });
+    invalidateCache();
+  }
+
   /* ─── Export ────────────────────────────────────────────────────── */
 
   window.YCSM.storage = {
@@ -345,6 +417,7 @@
     exportAll,
     importAll,
     migrateFromSyncIfNeeded,
+    migrateToAccountScope,
   };
 
   // Ejecutar migración automáticamente si es necesario (one-shot en contexto valid)
@@ -352,5 +425,10 @@
     migrateFromSyncIfNeeded().catch((e) => {
       console.error('[Sidefold] Automatic migration failed:', e);
     });
+  }
+
+  // Registrar listener de cambio de cuenta
+  if (YCSM.account) {
+    YCSM.account.onSwitch(() => invalidateCache());
   }
 })();

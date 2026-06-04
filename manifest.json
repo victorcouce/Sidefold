@@ -32,6 +32,7 @@
       "js": [
         "src/shared/utils.js",
         "src/shared/i18n.js",
+        "src/shared/account.js",
         "src/shared/storage.js",
         "src/content/sidebar.js",
         "src/panel/panel.js",
@@ -67,6 +68,7 @@
         "src/shared/roboto.css",
         "src/shared/utils.js",
         "src/shared/i18n.js",
+        "src/shared/account.js",
         "src/shared/storage.js",
         "assets/fonts/roboto-latin.woff2",
         "assets/fonts/roboto-latin-ext.woff2"
