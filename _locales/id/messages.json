@@ -383,13 +383,27 @@
   },
   "emptySearchTitle": {
     "message": "Tidak ada hasil untuk \"$QUERY$\"",
-    "placeholders": { "query": { "content": "$1" } }
+    "placeholders": {
+      "query": {
+        "content": "$1"
+      }
+    }
   },
   "emptyCategoryTitle": {
     "message": "«$CATEGORY$» kosong",
-    "placeholders": { "category": { "content": "$1" } }
+    "placeholders": {
+      "category": {
+        "content": "$1"
+      }
+    }
   },
   "clearSelection": {
     "message": "Hapus pilihan"
+  },
+  "exportBackup": {
+    "message": "Ekspor cadangan"
+  },
+  "importBackup": {
+    "message": "Impor cadangan"
   }
 }

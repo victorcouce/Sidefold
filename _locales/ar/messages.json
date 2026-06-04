@@ -383,13 +383,27 @@
   },
   "emptySearchTitle": {
     "message": "لا توجد نتائج لـ \"$QUERY$\"",
-    "placeholders": { "query": { "content": "$1" } }
+    "placeholders": {
+      "query": {
+        "content": "$1"
+      }
+    }
   },
   "emptyCategoryTitle": {
     "message": "«$CATEGORY$» فارغة",
-    "placeholders": { "category": { "content": "$1" } }
+    "placeholders": {
+      "category": {
+        "content": "$1"
+      }
+    }
   },
   "clearSelection": {
     "message": "مسح التحديد"
+  },
+  "exportBackup": {
+    "message": "تصدير النسخة الاحتياطية"
+  },
+  "importBackup": {
+    "message": "استيراد النسخة الاحتياطية"
   }
 }

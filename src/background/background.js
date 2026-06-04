@@ -5,6 +5,7 @@
 
 chrome.runtime.onInstalled.addListener(({ reason }) => {
   // Extension installed or updated
+  // Storage migration happens automatically in storage.js when loaded
 });
 
 /**
@@ -18,8 +19,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       return true; // mantiene el canal abierto para respuesta async
 
     case 'getCategories':
-      chrome.storage.sync.get('categories', (data) => {
-        sendResponse({ categories: data.categories || {} });
+      window.YCSM.storage.getCategories().then((categories) => {
+        sendResponse({ categories: categories || {} });
+      }).catch((e) => {
+        console.error('[Sidefold] getCategories error:', e);
+        sendResponse({ categories: {} });
       });
       return true;
 

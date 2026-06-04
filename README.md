@@ -15,7 +15,7 @@ Sidefold is a Chrome extension (Manifest V3) that organizes your YouTube subscri
 - **Bulk assign** — multi-select mode to assign multiple channels to a category at once
 - **Open channel** — click a channel card to open it in a new tab
 - **Dark mode** — fully compatible with YouTube's dark theme
-- **Sync across devices** — categories and assignments sync via Chrome Sync (your own Google account)
+- **Backup & restore** — export your folders and assignments to a JSON file, import on another device or browser profile
 
 ## 🚀 Installation (developer mode)
 
@@ -63,10 +63,22 @@ Sidefold is a Chrome extension (Manifest V3) that organizes your YouTube subscri
 
 | Permission | Reason |
 |---|---|
-| `storage` | Save folders, channel assignments and settings |
+| `storage` | Save folders, channel assignments and settings to local storage |
+| `unlimitedStorage` | Support users with 200+ channels (removes 100KB sync limit) |
 | `host_permissions: youtube.com` | Inject the sidebar and panel into YouTube pages |
 
 No history, cookies, identity or sensitive data is requested.
+
+## 💾 Backups
+
+You can export all your folders and assignments to a JSON file, then import them on another device or browser profile:
+
+1. Open the **Organize Subscriptions** panel (click the Sidefold icon)
+2. Click **Export backup** → a JSON file downloads to your computer
+3. On another device: open the panel and click **Import backup** → select the JSON file
+4. Choose "Replace all" or "Merge" to combine with existing data
+
+The backup is compatible across devices and can be kept as a safety copy.
 
 ## 🛠 Development
 
@@ -89,11 +101,11 @@ node --check src/shared/i18n.js
 - **MutationObserver fallback** — if YouTube re-renders its sidebar and removes `#ycsm-sidebar`, the observer triggers re-injection automatically.
 - **In-memory cache** — `storage.js` keeps a module-level `_memCache` to avoid repeated reads to `chrome.storage` on every sidebar render.
 - **Canonical channel IDs** — legacy IDs like `/@handle` are automatically migrated to canonical `UCxxxxx` IDs when the panel opens.
-- **Chrome Sync** — categories and assignments are stored in `chrome.storage.sync` and sync across the user's devices via their own Google account. The subscription list cache uses `chrome.storage.local`.
+- **Local storage with unlimited quota** — categories and assignments are stored in `chrome.storage.local` with `unlimitedStorage` permission, supporting users with 200+ channels. The subscription list cache also uses `chrome.storage.local`.
 
 ## 🔒 Privacy
 
-This extension collects no personal data. All information (folders and assignments) is stored locally via `chrome.storage` and, if Chrome Sync is enabled, synced across your devices through your own Google account. No external servers, no analytics, no tracking.
+This extension collects no personal data. All information (folders and assignments) is stored locally on your device via `chrome.storage.local`. To move data between devices, use the Export/Import backup feature. No external servers, no analytics, no tracking.
 
 Full privacy policy: **[Privacy policy](https://victorcouce.github.io/Sidefold/privacy)**
 
