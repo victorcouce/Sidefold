@@ -9,10 +9,56 @@
   let _currentAccountId = null;
   const _switchCallbacks = [];
 
-  function detect() {
+  function getChannelIdFromYtcfg() {
     const ytcfg = window.ytcfg?.data_;
-    const loggedIn = ytcfg?.LOGGED_IN !== false;
-    const newId = loggedIn ? (ytcfg?.CHANNEL_ID || null) : null;
+    if (!ytcfg) return null;
+    // Probar múltiples ubicaciones donde YouTube almacena el channel ID
+    return (
+      ytcfg.CHANNEL_ID ||
+      ytcfg.DELEGATED_SESSION_ID?.split('|')?.[0] ||
+      null
+    );
+  }
+
+  function getChannelIdFromDOM() {
+    // Extraer channel ID del avatar en el header
+    const avatarLink = document.querySelector('#avatar-link, ytd-topbar-logo-button-renderer a[href*="/@"], a[href*="/channel/UC"]');
+    if (avatarLink?.href) {
+      const match = avatarLink.href.match(/(?:\/@|\/channel\/)([a-zA-Z0-9_-]+)/);
+      if (match) return match[1];
+    }
+    // Buscar en los scripts de ytInitialData
+    try {
+      const scripts = document.querySelectorAll('script');
+      for (const script of scripts) {
+        if (script.textContent.includes('CHANNEL_ID')) {
+          const match = script.textContent.match(/"CHANNEL_ID":"([^"]+)"/);
+          if (match) return match[1];
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function detect() {
+    const loggedIn = window.ytcfg?.data_?.LOGGED_IN !== false;
+    if (!loggedIn) {
+      const changed = _currentAccountId !== null && _currentAccountId !== null;
+      if (changed) {
+        _currentAccountId = null;
+        _switchCallbacks.forEach((cb) => {
+          try {
+            cb(null, _currentAccountId);
+          } catch (e) {
+            console.warn('[Sidefold] account switch callback error:', e);
+          }
+        });
+      }
+      return { accountId: null, changed, ready: false };
+    }
+
+    // Intentar detectar el channel ID de múltiples fuentes
+    const newId = getChannelIdFromYtcfg() || getChannelIdFromDOM();
 
     if (newId === null) {
       return { accountId: _currentAccountId, changed: false, ready: false };
@@ -24,10 +70,11 @@
 
     // Persistir en storage para que el iframe del panel pueda leerlo
     if (typeof chrome !== 'undefined' && chrome.storage?.local) {
-      chrome.storage.local.set({ '__active_account_id__': newId });
+      chrome.storage.local.set({ '__active_account_id__': newId }).catch(() => {});
     }
 
     if (changed) {
+      console.log('[Sidefold] Account changed:', { prevId, newId });
       _switchCallbacks.forEach((cb) => {
         try {
           cb(newId, prevId);

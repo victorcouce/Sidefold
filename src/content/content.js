@@ -137,17 +137,22 @@
 
   // YouTube emite este evento tras cada navegación interna
   document.addEventListener('yt-navigate-finish', () => {
-    const { changed } = YCSM.account.detect();
+    const { changed, accountId } = YCSM.account.detect();
     if (changed) {
+      console.log('[Sidefold] Account switched, clearing UI. New account:', accountId);
       // Limpiar UI existente
       document.getElementById('ycsm-sidebar')?.remove();
       YCSM.subscriptionsFilter?.cleanup();
       YCSM.videoLabel?.cleanup();
       stopLabelPolling();
+      // Invalidar caché explícitamente
+      YCSM.storage.invalidateCache();
+      isInjected = false;
     }
 
-    isInjected = false;
-    startInjectPolling();
+    if (!isInjected) {
+      startInjectPolling();
+    }
     // Navbar de suscripciones
     if (isSubscriptionsPage()) {
       YCSM.subscriptionsFilter?.injectSubscriptionsNav();
@@ -180,12 +185,17 @@
   async function init() {
     // Detectar cuenta activa (ytcfg puede no estar listo aún)
     let retries = 0;
-    while (retries < 10) {
+    let accountId = null;
+    while (retries < 20) {
       const result = YCSM.account.detect();
-      if (result.ready) break;
+      if (result.ready) {
+        accountId = result.accountId;
+        break;
+      }
       await new Promise((r) => setTimeout(r, 300));
       retries++;
     }
+    console.log('[Sidefold] Detected account:', accountId, 'after', retries, 'retries');
 
     // Migrar datos existentes al namespace de la cuenta
     await YCSM.storage.migrateToAccountScope();
