@@ -137,8 +137,22 @@
 
   // YouTube emite este evento tras cada navegación interna
   document.addEventListener('yt-navigate-finish', () => {
-    isInjected = false;
-    startInjectPolling();
+    const { changed, accountId } = YCSM.account.detect();
+    if (changed) {
+      console.log('[Sidefold] Account switched, clearing UI. New account:', accountId);
+      // Limpiar UI existente
+      document.getElementById('ycsm-sidebar')?.remove();
+      YCSM.subscriptionsFilter?.cleanup();
+      YCSM.videoLabel?.cleanup();
+      stopLabelPolling();
+      // Invalidar caché explícitamente
+      YCSM.storage.invalidateCache();
+      isInjected = false;
+    }
+
+    if (!isInjected) {
+      startInjectPolling();
+    }
     // Navbar de suscripciones
     if (isSubscriptionsPage()) {
       YCSM.subscriptionsFilter?.injectSubscriptionsNav();
@@ -154,6 +168,7 @@
 
   // Algunos cambios de ruta también emiten este evento
   document.addEventListener('yt-page-data-updated', () => {
+    YCSM.account.detect();
     if (!isInjected) startInjectPolling();
     if (isSubscriptionsPage()) {
       YCSM.subscriptionsFilter?.injectSubscriptionsNav();
@@ -168,6 +183,23 @@
   ═══════════════════════════════════════════════════════════════ */
 
   async function init() {
+    // Detectar cuenta activa (ytcfg puede no estar listo aún)
+    let retries = 0;
+    let accountId = null;
+    while (retries < 20) {
+      const result = YCSM.account.detect();
+      if (result.ready) {
+        accountId = result.accountId;
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 300));
+      retries++;
+    }
+    console.log('[Sidefold] Detected account:', accountId, 'after', retries, 'retries');
+
+    // Migrar datos existentes al namespace de la cuenta
+    await YCSM.storage.migrateToAccountScope();
+
     startInjectPolling();
 
     // Navbar de suscripciones en carga directa.
