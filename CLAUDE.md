@@ -31,14 +31,18 @@ node --check src/popup/popup.js
 
 All modules attach themselves to a single global namespace `window.YCSM` so content scripts loaded in sequence can reference each other. Load order (defined in `manifest.json`) is:
 
-1. `src/shared/utils.js` → `window.YCSM.utils` — shared helpers used across all contexts: `escapeHtml`, color palette, and deterministic hue generation from category IDs. Must load before every other module.
+1. `src/shared/utils.js` → `window.YCSM.utils` — shared helpers used across all contexts: `escapeHtml`, color palette, deterministic hue generation, and `debounce`. Must load before every other module.
 2. `src/shared/i18n.js` → `window.YCSM.i18n` — wrapper around `chrome.i18n.getMessage` and helpers for localized HTML attributes.
-3. `src/shared/storage.js` → `window.YCSM.storage` — abstraction over `chrome.storage.sync/local` with an in-memory cache. Categories/assignments go to `sync`; channel list cache goes to `local`.
-4. `src/content/sidebar.js` → `window.YCSM.sidebar` — builds and renders the accordion sidebar injected into YouTube's guide/nav rail.
-5. `src/panel/panel.js` → `window.YCSM.panel` — content script bridge for the Organize panel. Fetches subscriptions, migrates legacy channel IDs, caches channels via storage, and mounts/dismounts an iframe pointing to `panel.html`. The real UI lives in `panel-ui.js`.
-6. `src/content/subscriptions-filter.js` → `window.YCSM.subscriptionsFilter` — injects the category navbar on `/feed/subscriptions`.
-7. `src/content/video-label.js` → `window.YCSM.videoLabel` — injects the category button on watch/channel pages.
-8. `src/content/content.js` — orchestrator: sets up `MutationObserver`, listens to YouTube SPA events (`yt-navigate-finish`, `yt-page-data-updated`), triggers re-injection on DOM changes, and relays messages from the background service worker.
+3. `src/shared/account.js` → `window.YCSM.account` — detects the active YouTube channel ID (from `ytcfg` or DOM), caches it in `chrome.storage.local['__active_account_id__']`, and broadcasts changes via `onSwitch()` callbacks.
+4. `src/shared/storage.js` → `window.YCSM.storage` — abstraction over `chrome.storage.local` with in-memory cache and account-scoped keys (format: `account:<channelId>:<key>`). All saves also trigger a debounced `push()` if a session is active.
+5. `src/shared/config.js` → `window.YCSM.config` — exposes Supabase URL, anon key, and Google Client ID (filled manually after Supabase setup; see `docs/BACKEND_SETUP.md`).
+6. `src/shared/auth.js` → `window.YCSM.auth` — handles Google OAuth via `chrome.identity.launchWebAuthFlow`, manages refresh tokens, and persists session in `chrome.storage.local['__supabase_session__']`.
+7. `src/shared/sync.js` → `window.YCSM.sync` — offline-first sync with Supabase: `pull()`, `push()`, `sync()`. Implements last-write-wins via `updated_at` timestamps. Registers auto-sync on account switch.
+8. `src/content/sidebar.js` → `window.YCSM.sidebar` — builds and renders the accordion sidebar injected into YouTube's guide/nav rail.
+9. `src/panel/panel.js` → `window.YCSM.panel` — content script bridge for the Organize panel. Fetches subscriptions, migrates legacy channel IDs, caches channels via storage, and mounts/dismounts an iframe pointing to `panel.html`. The real UI lives in `panel-ui.js`.
+10. `src/content/subscriptions-filter.js` → `window.YCSM.subscriptionsFilter` — injects the category navbar on `/feed/subscriptions`.
+11. `src/content/video-label.js` → `window.YCSM.videoLabel` — injects the category button on watch/channel pages.
+12. `src/content/content.js` — orchestrator: sets up `MutationObserver`, listens to YouTube SPA events (`yt-navigate-finish`, `yt-page-data-updated`), triggers re-injection on DOM changes, calls `sync.sync()` on navigation if a session exists, and relays messages from the background service worker.
 
 **`src/background/background.js`** — minimal service worker. Forwards `openPanel` / `refreshSidebar` messages from content scripts to the active tab.
 
@@ -50,11 +54,17 @@ All modules attach themselves to a single global namespace `window.YCSM` so cont
 
 - **YouTube SPA navigation** — YouTube never does full page loads. `content.js` listens to `yt-navigate-finish` to reset injection state and re-inject after each navigation. `yt-page-data-updated` handles partial re-renders.
 - **MutationObserver fallback** — if YouTube re-renders its sidebar and removes `#ycsm-sidebar`, the observer triggers re-injection automatically.
-- **Storage cache invalidation** — `storage.js` keeps a module-level `_memCache`. Any `syncSet` call updates the cache in place; `chrome.storage.onChanged` (from another tab/device) calls `invalidateCache()`.
+- **Account-scoped storage** — `account.js` detects the YouTube channel ID; `storage.js` prefixes all keys with `account:<channelId>:` via `scopedKey()`. This lets multi-channel users maintain separate categories per channel. Channel ID is detected from `ytcfg.CHANNEL_ID` (cached in `storage.local['__active_account_id__']` for iframe/popup access).
+- **Storage cache invalidation** — `storage.js` keeps a module-level `_memCache`. Any save call updates the cache in place; `chrome.storage.onChanged` (from another tab/device) calls `invalidateCache()`. Also invalidated on account switch.
+- **Offline-first cloud sync** — `sync.js` implements `pull()`, `push()`, and `sync()`:
+  - **Pull:** `GET /rest/v1/user_data` filtered by `user_id` and `account_id`. If remote's `updated_at` > local's `__local_updated_at__`, download categories/assignments/settings.
+  - **Push:** `POST /rest/v1/user_data` with current state + `updated_at: now()`. Uses `Prefer: resolution=merge-duplicates` for upsert.
+  - **Sync:** Pull first, compare timestamps, push if local is newer. Auto-triggered on nav/init if a session exists.
+  - **Debounced push:** saves trigger `sync.push()` with 2s debounce to batch changes.
 - **Channel ID canonicalization** — legacy IDs like `/@handle` are migrated to canonical `UCxxxxx` IDs when the panel opens (`panel.js`).
 - **Subscription fetching** — `fetch('/feed/channels')` + parse `ytInitialData` JSON embedded in the HTML. This bypasses DOM scraping and returns the full subscription list reliably.
 - **RSS lazy-loading** — last-video dates are fetched in parallel (max 15 concurrent) from `https://www.youtube.com/feeds/videos.xml?channel_id=...`.
-- **Category colors** — each category has a `hue` integer (0–360). `utils.js` exposes `catColor(hue)` which returns an `oklch` value; the same helper is used in the sidebar, panel, and video label so colors are consistent everywhere. Legacy categories without a `hue` fall back to a deterministic hash of their ID.
+- **Category colors** — each category has a `hue` integer (0–360). `utils.js` exposes `categoryColor(category)` which returns an `oklch` value; the same helper is used in the sidebar, panel, and video label so colors are consistent everywhere. Legacy categories without a `hue` fall back to a deterministic hash of their ID.
 
 ## Internationalisation
 

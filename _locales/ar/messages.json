@@ -405,5 +405,32 @@
   },
   "importBackup": {
     "message": "استيراد النسخة الاحتياطية"
+  },
+  "accountSection": {
+    "message": "الحساب"
+  },
+  "signIn": {
+    "message": "تسجيل الدخول باستخدام Google"
+  },
+  "signOut": {
+    "message": "تسجيل الخروج"
+  },
+  "syncNow": {
+    "message": "مزامنة الآن"
+  },
+  "syncing": {
+    "message": "جاري المزامنة..."
+  },
+  "signedInAs": {
+    "message": "تم تسجيل الدخول باسم"
+  },
+  "syncError": {
+    "message": "خطأ في المزامنة"
+  },
+  "tips": {
+    "message": "نصائح"
+  },
+  "links": {
+    "message": "الروابط"
   }
 }

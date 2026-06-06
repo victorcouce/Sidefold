@@ -66,6 +66,22 @@
     return /^\/(@|channel\/|c\/|user\/)/.test(location.pathname);
   }
 
+  /* ─── Debounce ────────────────────────────────────────────────── */
+
+  /**
+   * Debounce: retrasa la ejecución de una función hasta que hayan pasado ms sin llamadas.
+   */
+  function debounce(fn, delayMs) {
+    let timeoutId = null;
+    return function (...args) {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        fn(...args);
+        timeoutId = null;
+      }, delayMs);
+    };
+  }
+
   /* ─── Export ──────────────────────────────────────────────────── */
 
   window.YCSM.utils = {
@@ -76,5 +92,6 @@
     isSubscriptionsPage,
     isWatchPage,
     isChannelPage,
+    debounce,
   };
 })();

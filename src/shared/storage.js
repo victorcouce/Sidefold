@@ -112,19 +112,46 @@
 
   /* ─── Escritura ─────────────────────────────────────────────────── */
 
+  // Debouncer para push (2s)
+  const _debouncedPush = YCSM.utils?.debounce?.(async () => {
+    const session = await (YCSM.auth?.getSession?.());
+    if (session && YCSM.sync?.push) {
+      try {
+        await YCSM.sync.push();
+      } catch (e) {
+        console.warn('[YCSM] debounced push failed:', e.message);
+      }
+    }
+  }, 2000) || function () {};
+
   function saveCategories(categories) {
     if (_memCache) _memCache.categories = categories;
-    return storageSet({ [scopedKey('categories')]: categories });
+    const toSet = {
+      [scopedKey('categories')]: categories,
+      [scopedKey('__local_updated_at__')]: Date.now(),
+    };
+    _debouncedPush();
+    return storageSet(toSet);
   }
 
   function saveChannelAssignments(channelAssignments) {
     if (_memCache) _memCache.channelAssignments = channelAssignments;
-    return storageSet({ [scopedKey('channelAssignments')]: channelAssignments });
+    const toSet = {
+      [scopedKey('channelAssignments')]: channelAssignments,
+      [scopedKey('__local_updated_at__')]: Date.now(),
+    };
+    _debouncedPush();
+    return storageSet(toSet);
   }
 
   function saveSettings(settings) {
     if (_memCache) _memCache.settings = settings;
-    return storageSet({ [scopedKey('settings')]: settings });
+    const toSet = {
+      [scopedKey('settings')]: settings,
+      [scopedKey('__local_updated_at__')]: Date.now(),
+    };
+    _debouncedPush();
+    return storageSet(toSet);
   }
 
   /* ─── Canales en caché (storage local — 5 MB) ──────────────────── */
