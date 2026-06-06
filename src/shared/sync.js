@@ -32,11 +32,18 @@
   }
 
   /**
+   * Obtiene el accountId activo tanto en content scripts (memoria) como en popup/iframe (storage).
+   */
+  async function resolveAccountId() {
+    return YCSM.account?.getAccountId() || await YCSM.account?.loadAccountId() || null;
+  }
+
+  /**
    * Descarga (pull) datos de Supabase si el remoto es más nuevo.
    */
   async function pull() {
     const session = await YCSM.auth?.getSession();
-    const accountId = YCSM.account?.getAccountId();
+    const accountId = await resolveAccountId();
 
     if (!session || !accountId) {
       return { success: false, reason: 'no_session_or_account' };
@@ -115,7 +122,7 @@
    */
   async function push() {
     const session = await YCSM.auth?.getSession();
-    const accountId = YCSM.account?.getAccountId();
+    const accountId = await resolveAccountId();
 
     if (!session || !accountId) {
       return { success: false, reason: 'no_session_or_account' };
@@ -164,7 +171,7 @@
    */
   async function sync() {
     const session = await YCSM.auth?.getSession();
-    const accountId = YCSM.account?.getAccountId();
+    const accountId = await resolveAccountId();
 
     if (!session || !accountId) {
       return { success: false, reason: 'no_session_or_account' };

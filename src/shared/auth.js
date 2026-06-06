@@ -72,13 +72,13 @@
     if (!YCSM.config) throw new Error('config.js not loaded');
 
     const redirectUrl = chrome.identity.getRedirectURL();
+    // Supabase maneja el client_id, scope y response_type internamente.
+    // Solo pasamos provider y redirect_to; access_type=offline para recibir refresh_token.
     const authUrl =
       `${YCSM.config.SUPABASE_URL}/auth/v1/authorize?` +
       `provider=google&` +
       `redirect_to=${encodeURIComponent(redirectUrl)}&` +
-      `response_type=token&` +
-      `scope=${encodeURIComponent('openid email profile')}&` +
-      `client_id=${encodeURIComponent(YCSM.config.SUPABASE_ANON_KEY)}`;
+      `access_type=offline`;
 
     let redirectUrlWithCode;
     try {

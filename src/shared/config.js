@@ -7,9 +7,9 @@
   if (!window.YCSM) window.YCSM = {};
 
   // TODO: rellenar tras crear el proyecto Supabase (ver docs/BACKEND_SETUP.md)
-  const SUPABASE_URL = 'https://your-project.supabase.co';
-  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...';
-  const GOOGLE_CLIENT_ID = 'your-client-id.apps.googleusercontent.com';
+  const SUPABASE_URL = 'https://nyuomgpfxsuzbqytrzzf.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_2z0DufhHIu9aal_x_mTQdA_rp6rvnX7';
+  const GOOGLE_CLIENT_ID = '807365668587-meqsnv9v73lo1941urfasgbktpf4q3ks.apps.googleusercontent.com';
 
   window.YCSM.config = {
     SUPABASE_URL,
