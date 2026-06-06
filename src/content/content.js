@@ -150,6 +150,17 @@
       isInjected = false;
     }
 
+    // Sincronizar si hay sesión activa
+    if (YCSM.sync && YCSM.auth) {
+      YCSM.auth.getSession().then((session) => {
+        if (session && accountId) {
+          YCSM.sync.sync().catch((e) => {
+            console.warn('[Sidefold] Sync error on navigation:', e.message);
+          });
+        }
+      });
+    }
+
     if (!isInjected) {
       startInjectPolling();
     }
@@ -199,6 +210,17 @@
 
     // Migrar datos existentes al namespace de la cuenta
     await YCSM.storage.migrateToAccountScope();
+
+    // Sincronizar si hay sesión activa
+    if (YCSM.sync && YCSM.auth) {
+      YCSM.auth.getSession().then((session) => {
+        if (session && accountId) {
+          YCSM.sync.sync().catch((e) => {
+            console.warn('[Sidefold] Sync error on init:', e.message);
+          });
+        }
+      });
+    }
 
     startInjectPolling();
 

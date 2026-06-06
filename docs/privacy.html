@@ -161,13 +161,14 @@
     </div>
 
     <div class="highlight">
-      <strong>Short version:</strong> We collect nothing. Your folders stay in your own browser and your own Google account. No servers, no tracking, no accounts required.
+      <strong>Short version:</strong> Your categories stay local by default. If you sign in with Google (optional), your categories sync to Supabase; only your email and categories are stored. We don't track viewing habits, sell data, or share it with third parties.
     </div>
 
-    <h2>1. Data We Collect</h2>
-    <p>We do not collect any personal data. The extension has no servers, sends no analytics, and does not track usage in any way.</p>
+    <h2>1. Data Storage: Local vs. Cloud</h2>
+    <p><strong>By default (no sign-in):</strong> All data stays on your device. No data sent to any server.</p>
+    <p><strong>With cloud sync enabled (optional):</strong> Starting with Sidefold 1.2.0, you can optionally sign in with your Google account to sync categories and assignments across your devices. This is completely optional — the extension works offline without an account.</p>
 
-    <h2>2. Data Stored Locally</h2>
+    <h2>2. Local Storage (Always)</h2>
     <p>The extension stores the following data exclusively within your browser using Chrome's built-in storage API (<code>chrome.storage</code>):</p>
     <ul>
       <li>Folder names, colors, and order you create.</li>
@@ -175,22 +176,44 @@
       <li>Extension preferences (layout, display options).</li>
       <li>A cached list of your YouTube subscriptions (channel names and avatars), stored locally to avoid repeated network requests.</li>
     </ul>
-    <p>If Chrome Sync is enabled on your account, this data is synced across your devices through your own Google account — the same way Chrome bookmarks and settings sync. We have no access to this data.</p>
 
-    <h2>3. Data We Do Not Collect</h2>
+    <h2>3. Cloud Sync Data (Optional, v1.2.0+)</h2>
+    <p>If you sign in with Google, the following data is transmitted to Supabase (our cloud backend) and stored server-side:</p>
     <ul>
-      <li>No names, email addresses, or personal identifiers.</li>
-      <li>No browsing history, watch history, or YouTube activity.</li>
-      <li>No cookies (the extension does not set or read any cookies).</li>
-      <li>No analytics or crash-reporting services.</li>
-      <li>We do not sell, share, or transmit your data to any third party.</li>
+      <li>Your Google email address and unique user ID (used for authentication only)</li>
+      <li>Your category data (names, colors, order)</li>
+      <li>Your channel assignments (which channels belong to which categories)</li>
+      <li>Timestamps of last updates (used for conflict resolution)</li>
+    </ul>
+    <p><strong>Data protection:</strong></p>
+    <ul>
+      <li>All data is transmitted over HTTPS (encrypted in transit)</li>
+      <li>Supabase uses Row Level Security (RLS): only you can access your own data</li>
+      <li>We do not encrypt data at rest (Supabase is managed; security is delegated to them)</li>
+      <li>Data is retained as long as your account exists; you can delete it by signing out</li>
     </ul>
 
-    <h2>4. YouTube Access</h2>
-    <p>The extension reads your YouTube subscription list by fetching <code>youtube.com/feed/channels</code> using your existing YouTube session in the browser. This data is used only to display your channels inside the extension UI and is never transmitted outside your browser.</p>
+    <h2>4. Data We Do Not Collect</h2>
+    <ul>
+      <li>No watch history, viewing habits, or YouTube activity.</li>
+      <li>No browsing data outside of YouTube.</li>
+      <li>No cookies (the extension does not set or read any cookies).</li>
+      <li>No analytics, crash reports, or third-party tracking services.</li>
+    </ul>
 
-    <h2>5. Third-Party Services</h2>
-    <p>The extension does not connect to any external servers or third-party services. All functionality runs entirely within your browser.</p>
+    <h2>5. Data Usage</h2>
+    <ul>
+      <li><strong>Email:</strong> Used only to verify your identity via Google OAuth. Not used for marketing or sharing.</li>
+      <li><strong>Categories & assignments:</strong> Used only for syncing across your devices. Never shared, sold, or used for any other purpose.</li>
+      <li><strong>Timestamps:</strong> Used internally to resolve conflicts (last-write-wins) when you edit on multiple devices simultaneously.</li>
+    </ul>
+
+    <h2>6. YouTube Access</h2>
+    <p>The extension reads your YouTube subscription list by fetching <code>youtube.com/feed/channels</code> using your existing YouTube session in the browser. This data is used only to display your channels inside the extension UI and is never transmitted to our servers (Supabase receives only the categories and assignments you create).</p>
+
+    <h2>7. Third-Party Services</h2>
+    <p>The extension uses <strong>Supabase</strong> (https://supabase.com) for cloud storage if you enable sync. Supabase is a PostgreSQL-based backend with Google Cloud infrastructure. By signing in, you agree to their <a href="https://supabase.com/privacy" target="_blank" rel="noopener">privacy policy</a>.</p>
+    <p>Google OAuth is used for authentication; your Google account terms apply separately.</p>
 
     <h2>6. Open Source</h2>
     <p>The extension's source code is publicly available under the MIT license at <a href="https://github.com/victorcouce/Sidefold" target="_blank" rel="noopener">the GitHub repository</a>. You can audit exactly what the extension does.</p>
@@ -216,13 +239,14 @@
     </div>
 
     <div class="highlight">
-      <strong>Resumen:</strong> No recopilamos nada. Tus carpetas se guardan en tu propio navegador y en tu cuenta de Google. Sin servidores, sin rastreo, sin cuentas propias requeridas.
+      <strong>Resumen:</strong> Tus categorías se guardan localmente por defecto. Si inicias sesión con Google (opcional), tus categorías se sincronizan a Supabase; solo se almacenan tu correo electrónico y tus categorías. No rastreamos hábitos de visualización, no vendemos datos ni los compartimos con terceros.
     </div>
 
-    <h2>1. Datos que recopilamos</h2>
-    <p>No recopilamos ningún dato personal. La extensión no tiene servidores propios, no envía analíticas y no rastrea el uso de ninguna forma.</p>
+    <h2>1. Almacenamiento de datos: Local vs. Nube</h2>
+    <p><strong>Por defecto (sin iniciar sesión):</strong> Todos los datos se guardan en tu dispositivo. Ningún dato se envía a ningún servidor.</p>
+    <p><strong>Con sincronización en la nube activada (opcional):</strong> A partir de Sidefold 1.2.0, puedes opcionalmente iniciar sesión con tu cuenta de Google para sincronizar categorías y asignaciones entre tus dispositivos. Esto es completamente opcional: la extensión funciona sin conexión sin una cuenta.</p>
 
-    <h2>2. Datos almacenados localmente</h2>
+    <h2>2. Almacenamiento local (Siempre)</h2>
     <p>La extensión guarda los siguientes datos exclusivamente en tu navegador, usando la API de almacenamiento integrada de Chrome (<code>chrome.storage</code>):</p>
     <ul>
       <li>Nombres, colores y orden de las carpetas que creas.</li>
@@ -230,22 +254,44 @@
       <li>Preferencias de la extensión (diseño, opciones de visualización).</li>
       <li>Una caché de tu lista de suscripciones de YouTube (nombres de canales y avatares), guardada localmente para evitar peticiones repetidas.</li>
     </ul>
-    <p>Si Chrome Sync está activado en tu cuenta, estos datos se sincronizan entre tus dispositivos a través de tu propia cuenta de Google, de la misma forma que se sincronizan los marcadores y ajustes de Chrome. No tenemos acceso a estos datos.</p>
 
-    <h2>3. Datos que no recopilamos</h2>
+    <h2>3. Datos de sincronización en la nube (Opcional, v1.2.0+)</h2>
+    <p>Si inicias sesión con Google, los siguientes datos se transmiten a Supabase (nuestro servidor en la nube) y se almacenan en el servidor:</p>
     <ul>
-      <li>No recopilamos nombres, correos electrónicos ni identificadores personales.</li>
-      <li>No recopilamos historial de navegación, historial de visionado ni actividad en YouTube.</li>
-      <li>No usamos cookies (la extensión no establece ni lee ninguna cookie).</li>
-      <li>No usamos servicios de analítica ni de reporte de errores.</li>
-      <li>No vendemos, compartimos ni transmitimos tus datos a terceros.</li>
+      <li>Tu correo electrónico de Google e ID de usuario único (usado solo para autenticación)</li>
+      <li>Tus datos de categorías (nombres, colores, orden)</li>
+      <li>Tus asignaciones de canales (qué canales pertenecen a qué categorías)</li>
+      <li>Marcas de tiempo de últimas actualizaciones (usadas para resolución de conflictos)</li>
+    </ul>
+    <p><strong>Protección de datos:</strong></p>
+    <ul>
+      <li>Todos los datos se transmiten por HTTPS (cifrados en tránsito)</li>
+      <li>Supabase usa Row Level Security (RLS): solo tú puedes acceder a tus datos</li>
+      <li>No ciframos los datos en reposo (Supabase es administrado; la seguridad se delega a ellos)</li>
+      <li>Los datos se retienen mientras tu cuenta exista; puedes eliminarlos cerrando sesión</li>
     </ul>
 
-    <h2>4. Acceso a YouTube</h2>
-    <p>La extensión lee tu lista de suscripciones de YouTube accediendo a <code>youtube.com/feed/channels</code> con tu sesión activa de YouTube en el navegador. Estos datos se usan únicamente para mostrar tus canales dentro de la interfaz de la extensión y nunca se transmiten fuera de tu navegador.</p>
+    <h2>4. Datos que no recopilamos</h2>
+    <ul>
+      <li>No historial de visualización ni hábitos de visionado.</li>
+      <li>No datos de navegación fuera de YouTube.</li>
+      <li>No cookies (la extensión no establece ni lee ninguna cookie).</li>
+      <li>No analíticas, reportes de errores ni servicios de rastreo de terceros.</li>
+    </ul>
 
-    <h2>5. Servicios de terceros</h2>
-    <p>La extensión no se conecta a ningún servidor externo ni servicio de terceros. Toda la funcionalidad se ejecuta íntegramente dentro de tu navegador.</p>
+    <h2>5. Uso de datos</h2>
+    <ul>
+      <li><strong>Correo electrónico:</strong> Se usa únicamente para verificar tu identidad vía Google OAuth. No se utiliza para marketing ni compartición.</li>
+      <li><strong>Categorías y asignaciones:</strong> Se usan únicamente para sincronizar entre tus dispositivos. Nunca se comparten, venden ni se usan para ningún otro propósito.</li>
+      <li><strong>Marcas de tiempo:</strong> Se usan internamente para resolver conflictos (última escritura gana) cuando editas en varios dispositivos simultáneamente.</li>
+    </ul>
+
+    <h2>6. Acceso a YouTube</h2>
+    <p>La extensión lee tu lista de suscripciones de YouTube accediendo a <code>youtube.com/feed/channels</code> con tu sesión activa de YouTube en el navegador. Estos datos se usan únicamente para mostrar tus canales dentro de la interfaz de la extensión y nunca se transmiten a nuestros servidores (Supabase solo recibe las categorías y asignaciones que creas).</p>
+
+    <h2>7. Servicios de terceros</h2>
+    <p>La extensión usa <strong>Supabase</strong> (https://supabase.com) para almacenamiento en la nube si activas la sincronización. Supabase es un servidor PostgreSQL con infraestructura de Google Cloud. Al iniciar sesión, aceptas su <a href="https://supabase.com/privacy" target="_blank" rel="noopener">política de privacidad</a>.</p>
+    <p>Se utiliza Google OAuth para autenticación; tus términos de cuenta de Google se aplican por separado.</p>
 
     <h2>6. Código abierto</h2>
     <p>El código fuente de la extensión está disponible públicamente bajo licencia MIT en <a href="https://github.com/victorcouce/Sidefold" target="_blank" rel="noopener">el repositorio de GitHub</a>. Puedes auditar exactamente qué hace la extensión.</p>

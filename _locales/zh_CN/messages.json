@@ -405,5 +405,32 @@
   },
   "importBackup": {
     "message": "导入备份"
+  },
+  "accountSection": {
+    "message": "账户"
+  },
+  "signIn": {
+    "message": "使用 Google 登录"
+  },
+  "signOut": {
+    "message": "退出登录"
+  },
+  "syncNow": {
+    "message": "立即同步"
+  },
+  "syncing": {
+    "message": "正在同步..."
+  },
+  "signedInAs": {
+    "message": "登录身份为"
+  },
+  "syncError": {
+    "message": "同步错误"
+  },
+  "tips": {
+    "message": "提示"
+  },
+  "links": {
+    "message": "链接"
   }
 }
