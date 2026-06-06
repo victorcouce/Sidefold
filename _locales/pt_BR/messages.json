@@ -405,5 +405,32 @@
   },
   "importBackup": {
     "message": "Importar backup"
+  },
+  "accountSection": {
+    "message": "Conta"
+  },
+  "signIn": {
+    "message": "Entrar com Google"
+  },
+  "signOut": {
+    "message": "Sair"
+  },
+  "syncNow": {
+    "message": "Sincronizar agora"
+  },
+  "syncing": {
+    "message": "Sincronizando..."
+  },
+  "signedInAs": {
+    "message": "Conectado como"
+  },
+  "syncError": {
+    "message": "Erro de sincronização"
+  },
+  "tips": {
+    "message": "Dicas"
+  },
+  "links": {
+    "message": "Links"
   }
 }

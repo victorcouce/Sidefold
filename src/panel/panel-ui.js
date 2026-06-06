@@ -1110,6 +1110,7 @@
 
   /* ─── Boot ───────────────────────────────────────────────────── */
   async function init() {
+    await YCSM.account.loadAccountId();
     document.title = t('organizeSubscriptionsPageTitle') || 'Organizar suscripciones';
     if (storage) {
       await refreshFromStorage();

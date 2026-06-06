@@ -268,6 +268,84 @@ body {
   flex-shrink: 0;
 }
 
+/* ── Account Section ── */
+#accountContent {
+  background: var(--card-bg);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+#accountStatus {
+  background: var(--card-bg);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+
+.account-info {
+  margin-bottom: 12px;
+}
+
+.account-email {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  word-break: break-all;
+  margin-bottom: 4px;
+}
+
+.account-sync-status {
+  font-size: 11px;
+  color: var(--dim);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.account-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* ── Buttons ── */
+.primary-btn,
+.secondary-btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+  width: 100%;
+}
+
+.primary-btn {
+  background: var(--accent);
+  color: white;
+}
+
+.primary-btn:hover {
+  opacity: 0.9;
+}
+
+.primary-btn:active {
+  opacity: 0.8;
+}
+
+.secondary-btn {
+  background: var(--btn-bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.secondary-btn:hover {
+  background: var(--hover);
+}
+
 /* ── Footer ── */
 .popup-footer {
   padding: 10px 16px 14px;

@@ -23,9 +23,27 @@
       </div>
     </div>
 
+    <!-- Account Section -->
+    <div class="section" id="accountSection">
+      <div class="section-label" data-i18n="accountSection">Account</div>
+      <div id="accountContent">
+        <button id="btnSignIn" class="primary-btn" data-i18n="signIn">Sign in with Google</button>
+      </div>
+      <div id="accountStatus" style="display:none">
+        <div class="account-info">
+          <div class="account-email" id="accountEmail"></div>
+          <div class="account-sync-status" id="syncStatus"></div>
+        </div>
+        <div class="account-actions">
+          <button id="btnSyncNow" class="secondary-btn" data-i18n="syncNow">Sync now</button>
+          <button id="btnSignOut" class="secondary-btn" data-i18n="signOut">Sign out</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Tips Carousel -->
     <div class="section">
-      <div class="section-label">Consejos</div>
+      <div class="section-label" data-i18n="tips">Tips</div>
       <div class="carousel" id="carousel">
         <div class="carousel-track" id="carouselTrack">
           <div class="tip" style="display:flex">
@@ -86,7 +104,7 @@
 
     <!-- Quick actions -->
     <div class="section">
-      <div class="section-label">Enlaces</div>
+      <div class="section-label" data-i18n="links">Links</div>
       <div class="actions">
         <a href="https://github.com/victorcouce/Sidefold" target="_blank" class="action-btn" id="btnGithub">
           <div class="action-icon">

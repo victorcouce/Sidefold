@@ -2,6 +2,40 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.0] - 2026-06-06
+
+### Added
+- **☁️ Cloud sync (optional)** — Sign in with Google to sync your categories and assignments across devices automatically (offline-first, powered by Supabase).
+- **Google OAuth authentication** via `chrome.identity.launchWebAuthFlow`.
+- **Account section in popup** — Sign in/out button, sync status, and manual sync trigger.
+- **Automatic sync on navigation** — Content script triggers sync when you navigate YouTube if a session is active.
+- **Debounced sync push** — Changes are batched and sent to the server with a 2-second delay.
+- **Last-write-wins conflict resolution** — Timestamps determine which version wins when editing on multiple devices.
+
+### Changed
+- **Storage enhanced** — All keys are now scoped by YouTube account ID for multi-channel support.
+- **Manifest version bumped** to 1.2.0.
+- **Permissions updated** — Added `identity` and `*.supabase.co` host permissions (cloud sync is optional, so these don't affect offline-only users).
+- **Internationalization** — Added new UI strings in all 7 languages (en, es, ar, hi, id, pt_BR, zh_CN) for account section and sync features.
+
+### Technical
+- New modules: `config.js`, `auth.js`, `sync.js` for cloud integration.
+- Storage now tracks `__local_updated_at__` per account for conflict resolution.
+- Added `debounce()` utility in `utils.js`.
+- Enhanced `content.js` to trigger sync on page load and navigation.
+
+### Documentation
+- **`docs/BACKEND_SETUP.md`** — Complete runbook for setting up Supabase and Google OAuth (manual steps for the user).
+- **`docs/STORE_LISTING.md`** — Chrome Web Store description and data usage declaration.
+- **Privacy policy updated** — Now documents cloud sync, data storage on Supabase, and optional sign-in.
+- **README updated** — Explains cloud sync features and links to setup guide.
+- **CLAUDE.md updated** — Documents new modules and offline-first sync architecture.
+
+### Notes
+- Cloud sync is 100% optional. The extension works offline without an account.
+- Only email and category data are sent to the server; never watch history or viewing habits.
+- Self-hosters can deploy their own Supabase project and modify `config.js` as needed.
+
 ## [1.1.0] - 2026-05-31
 
 ### Changed
