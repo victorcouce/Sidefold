@@ -83,29 +83,22 @@
         return { success: true, reason: 'local_is_newer' };
       }
 
-      // Descargar categorías, asignaciones y settings
-      const updates = {};
+      // Escribir directamente con claves scoped para evitar que storage.js
+      // dispare _debouncedPush() o use getAccountId() síncrono (null en popup).
+      const toSet = {};
       if (remote.categories) {
-        updates.categories = remote.categories;
+        toSet[`account:${accountId}:categories`] = remote.categories;
       }
       if (remote.channel_assignments) {
-        updates.channel_assignments = remote.channel_assignments;
+        toSet[`account:${accountId}:channelAssignments`] = remote.channel_assignments;
       }
       if (remote.settings) {
-        updates.settings = remote.settings;
+        toSet[`account:${accountId}:settings`] = remote.settings;
       }
 
-      // Guardar vía storage (que actualiza __local_updated_at__)
-      if (Object.keys(updates).length > 0) {
-        if (updates.categories) {
-          await YCSM.storage.saveCategories(updates.categories);
-        }
-        if (updates.channel_assignments) {
-          await YCSM.storage.saveChannelAssignments(updates.channel_assignments);
-        }
-        if (updates.settings) {
-          await YCSM.storage.saveSettings(updates.settings);
-        }
+      if (Object.keys(toSet).length > 0) {
+        await chrome.storage.local.set(toSet);
+        YCSM.storage?.invalidateCache();
         // Marcar __local_updated_at__ al timestamp remoto para no volver a tirar
         await setLocalUpdatedAt(accountId, remoteTime);
       }
@@ -129,14 +122,22 @@
     }
 
     try {
-      const all = await YCSM.storage.getAll();
+      // Leer directamente con claves scoped para que funcione tanto en content
+      // scripts como en el popup (donde getAccountId() es null y getAll()
+      // devuelve las claves sin scope → datos vacíos).
+      const scopedKeys = [
+        `account:${accountId}:categories`,
+        `account:${accountId}:channelAssignments`,
+        `account:${accountId}:settings`,
+      ];
+      const raw = await chrome.storage.local.get(scopedKeys);
 
       const payload = {
         user_id: session.user.id,
         account_id: accountId,
-        categories: all.categories || {},
-        channel_assignments: all.channelAssignments || {},
-        settings: all.settings || {},
+        categories: raw[`account:${accountId}:categories`] || {},
+        channel_assignments: raw[`account:${accountId}:channelAssignments`] || {},
+        settings: raw[`account:${accountId}:settings`] || {},
         updated_at: new Date().toISOString(),
       };
 
