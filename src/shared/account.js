@@ -9,34 +9,36 @@
   let _currentAccountId = null;
   const _switchCallbacks = [];
 
+  /**
+   * El ID de cuenta del usuario logueado es SIEMPRE un ID de canal canónico
+   * (UCxxxxxxxxxxxxxxxxxxxxxx, 24 chars). Nunca un handle (/@nombre) ni el
+   * canal del contenido que se esté viendo. Validamos el formato para no
+   * scopear el storage a una cuenta equivocada (p. ej. LaVanguardia).
+   */
+  function isCanonicalChannelId(id) {
+    return typeof id === 'string' && /^UC[0-9A-Za-z_-]{22}$/.test(id);
+  }
+
   function getChannelIdFromYtcfg() {
     const ytcfg = window.ytcfg?.data_;
     if (!ytcfg) return null;
-    // Probar múltiples ubicaciones donde YouTube almacena el channel ID
-    return (
-      ytcfg.CHANNEL_ID ||
-      ytcfg.DELEGATED_SESSION_ID?.split('|')?.[0] ||
-      null
-    );
+    // ytcfg.CHANNEL_ID es el canal del usuario logueado (estable entre páginas).
+    const id = ytcfg.CHANNEL_ID || ytcfg.DELEGATED_SESSION_ID?.split('|')?.[0] || null;
+    return isCanonicalChannelId(id) ? id : null;
   }
 
   function getChannelIdFromDOM() {
-    // Extraer channel ID del avatar en el header
-    const avatarLink = document.querySelector('#avatar-link, ytd-topbar-logo-button-renderer a[href*="/@"], a[href*="/channel/UC"]');
+    // Fallback SOLO si ytcfg aún no tiene el ID. Restringido al avatar real de
+    // la cuenta en el masthead; jamás enlaces de canal del contenido de la
+    // página (que apuntarían al canal del vídeo/página, no al del usuario).
+    const avatarLink = document.querySelector(
+      'ytd-masthead #avatar-btn a[href*="/channel/UC"], ' +
+      'ytd-masthead a#avatar-link[href*="/channel/UC"]'
+    );
     if (avatarLink?.href) {
-      const match = avatarLink.href.match(/(?:\/@|\/channel\/)([a-zA-Z0-9_-]+)/);
-      if (match) return match[1];
+      const match = avatarLink.href.match(/\/channel\/(UC[0-9A-Za-z_-]{22})/);
+      if (match && isCanonicalChannelId(match[1])) return match[1];
     }
-    // Buscar en los scripts de ytInitialData
-    try {
-      const scripts = document.querySelectorAll('script');
-      for (const script of scripts) {
-        if (script.textContent.includes('CHANNEL_ID')) {
-          const match = script.textContent.match(/"CHANNEL_ID":"([^"]+)"/);
-          if (match) return match[1];
-        }
-      }
-    } catch (_) {}
     return null;
   }
 
@@ -96,7 +98,9 @@
     if (_currentAccountId) return _currentAccountId;
     try {
       const data = await chrome.storage.local.get('__active_account_id__');
-      _currentAccountId = data['__active_account_id__'] || null;
+      const cached = data['__active_account_id__'] || null;
+      // Ignorar valores antiguos no canónicos (bug de detección por DOM).
+      _currentAccountId = isCanonicalChannelId(cached) ? cached : null;
     } catch (_) {}
     return _currentAccountId;
   }
