@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.2] - 2026-06-07
+
+### Fixed
+- **Account detection picking the wrong channel** — The DOM fallback in `account.js` could grab the channel of the page's *content* (e.g. a creator like LaVanguardia you were viewing) instead of your own logged-in channel. This scoped storage to a phantom account and showed empty categories. Detection now only accepts canonical `UC…` channel IDs and, when falling back to the DOM, reads exclusively the real account avatar in the masthead.
+- **Stale cached account ID** — `loadAccountId()` (used by the panel and popup) now ignores previously cached non-canonical IDs.
+
+### Technical
+- Added `isCanonicalChannelId()` validation in `account.js`.
+- Added `test-account.js` covering account detection (run with `node test-account.js`).
+
+## [1.2.1] - 2026-06-06
+
+### Fixed
+- **Cloud sync data loss** — `pull()`/`push()` now bypass `storage.js` account scoping to prevent categories/assignments from being written under the wrong key during sync.
+
 ## [1.2.0] - 2026-06-06
 
 ### Added
