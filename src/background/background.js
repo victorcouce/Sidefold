@@ -18,15 +18,6 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       forwardToActiveTab(message, sendResponse);
       return true; // mantiene el canal abierto para respuesta async
 
-    case 'getCategories':
-      window.YCSM.storage.getCategories().then((categories) => {
-        sendResponse({ categories: categories || {} });
-      }).catch((e) => {
-        console.error('[Sidefold] getCategories error:', e);
-        sendResponse({ categories: {} });
-      });
-      return true;
-
     default:
       break;
   }

@@ -100,6 +100,13 @@
       }
 
       if (Object.keys(toSet).length > 0) {
+        // Re-comprobar el timestamp local justo antes de escribir: si el
+        // usuario guardó algo mientras el fetch estaba en vuelo, abortamos
+        // para no pisar esa edición (se subirá en el push posterior).
+        const localNow = await getLocalUpdatedAt(accountId);
+        if (remoteTime <= localNow) {
+          return { success: true, reason: 'local_is_newer' };
+        }
         await chrome.storage.local.set(toSet);
         YCSM.storage?.invalidateCache();
         // Marcar __local_updated_at__ al timestamp remoto para no volver a tirar
