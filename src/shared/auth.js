@@ -41,11 +41,10 @@
       const data = await chrome.storage.local.get(SESSION_KEY);
       const session = data[SESSION_KEY];
       if (!session) return null;
-      // Verificar que no haya expirado
-      if (session.expiresAt && session.expiresAt < Date.now()) {
-        await chrome.storage.local.remove(SESSION_KEY);
-        return null;
-      }
+      // NO borrar la sesión aunque el access token haya expirado: el refresh
+      // token sigue siendo válido mucho más tiempo. La renovación la gestionan
+      // getSession()/refreshIfNeeded(). Borrar aquí tiraría el refresh token y
+      // dejaría al usuario desconectado pasada 1 hora sin poder renovar.
       return session;
     } catch (_) {
       return null;

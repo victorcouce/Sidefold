@@ -85,14 +85,17 @@
 
       // Escribir directamente con claves scoped para evitar que storage.js
       // dispare _debouncedPush() o use getAccountId() síncrono (null en popup).
+      // Solo escribimos campos con contenido: nunca sobrescribimos datos locales
+      // con un objeto remoto vacío (protege ante una fila remota envenenada).
+      const hasKeys = (obj) => obj && typeof obj === 'object' && Object.keys(obj).length > 0;
       const toSet = {};
-      if (remote.categories) {
+      if (hasKeys(remote.categories)) {
         toSet[`account:${accountId}:categories`] = remote.categories;
       }
-      if (remote.channel_assignments) {
+      if (hasKeys(remote.channel_assignments)) {
         toSet[`account:${accountId}:channelAssignments`] = remote.channel_assignments;
       }
-      if (remote.settings) {
+      if (hasKeys(remote.settings)) {
         toSet[`account:${accountId}:settings`] = remote.settings;
       }
 
@@ -132,12 +135,26 @@
       ];
       const raw = await chrome.storage.local.get(scopedKeys);
 
+      const categories = raw[`account:${accountId}:categories`] || {};
+      const channelAssignments = raw[`account:${accountId}:channelAssignments`] || {};
+      const settings = raw[`account:${accountId}:settings`] || {};
+
+      // Guard anti-pérdida de datos: nunca subir un estado vacío (sin categorías
+      // ni asignaciones). Un push vacío sobrescribiría el remoto con {} y un
+      // updated_at más reciente, propagando el vacío a todos los dispositivos.
+      const hasData =
+        Object.keys(categories).length > 0 ||
+        Object.keys(channelAssignments).length > 0;
+      if (!hasData) {
+        return { success: true, reason: 'nothing_to_push' };
+      }
+
       const payload = {
         user_id: session.user.id,
         account_id: accountId,
-        categories: raw[`account:${accountId}:categories`] || {},
-        channel_assignments: raw[`account:${accountId}:channelAssignments`] || {},
-        settings: raw[`account:${accountId}:settings`] || {},
+        categories,
+        channel_assignments: channelAssignments,
+        settings,
         updated_at: new Date().toISOString(),
       };
 
