@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.2.3] - 2026-06-07
+
+### Fixed
+- **Session dropped after ~1 hour ("disconnected")** — `getStoredSession()` deleted the entire session (including the refresh token) as soon as the access token expired, so silent token refresh could never run. The session is now kept and refreshed via the refresh token; you stay signed in across visits.
+- **Cloud sync data loss (empty state wiping categories)** — `push()` no longer uploads an empty state (no categories and no assignments), which previously overwrote the remote row with `{}` and a newer timestamp, propagating the empty state to every device. `pull()` no longer overwrites local data with empty remote fields, protecting devices that still hold a good copy.
+
 ## [1.2.2] - 2026-06-07
 
 ### Fixed
