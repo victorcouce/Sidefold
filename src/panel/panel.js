@@ -295,10 +295,16 @@
   }
 
   function handleMessage(e) {
-    if (!e?.data || !e.origin.startsWith('chrome-extension://')) return;
+    // Solo aceptar mensajes del iframe de ESTA extensión; un prefijo
+    // chrome-extension:// genérico aceptaría iframes de otras extensiones.
+    if (!e?.data || e.origin !== `chrome-extension://${chrome.runtime.id}`) return;
     if (e.data.type === 'YCSM_PANEL_CLOSE') close();
     if (e.data.type === 'YCSM_NAVIGATE') {
-      if (e.data.href) window.open(e.data.href, '_blank');
+      const href = e.data.href;
+      // Allowlist: solo rutas relativas de YouTube o URLs https de youtube.com.
+      if (typeof href === 'string' && /^(\/(?!\/)|https:\/\/www\.youtube\.com\/)/.test(href)) {
+        window.open(href, '_blank');
+      }
     }
   }
 

@@ -129,8 +129,21 @@
 
   /**
    * Refresca la sesión usando el refresh_token.
+   * Los refrescos concurrentes del mismo contexto comparten una sola petición:
+   * Supabase rota el refresh token y dos peticiones en paralelo con el mismo
+   * token pueden invalidar la sesión entera.
    */
-  async function refreshIfNeeded() {
+  let _refreshInFlight = null;
+
+  function refreshIfNeeded() {
+    if (_refreshInFlight) return _refreshInFlight;
+    _refreshInFlight = _doRefresh().finally(() => {
+      _refreshInFlight = null;
+    });
+    return _refreshInFlight;
+  }
+
+  async function _doRefresh() {
     const session = await getStoredSession();
     if (!session) return null;
 
@@ -158,8 +171,17 @@
       });
 
       if (!response.ok) {
-        await signOut();
-        return null;
+        // Solo desloguear si el servidor rechaza el token (400/401). Un 5xx o
+        // un 429 transitorio NO debe destruir la sesión: reintentamos en la
+        // próxima llamada con el mismo refresh token.
+        if (response.status === 400 || response.status === 401) {
+          await signOut();
+          return null;
+        }
+        console.warn('[YCSM] token refresh transient failure:', response.status);
+        // El access token puede seguir siendo válido dentro de la ventana de
+        // 5 min previa a expirar; úsalo mientras tanto.
+        return session.expiresAt > Date.now() ? session : null;
       }
 
       const data = await response.json();
