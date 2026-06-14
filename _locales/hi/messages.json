@@ -432,5 +432,8 @@
   },
   "links": {
     "message": "लिंक"
+  },
+  "syncNoAccount": {
+    "message": "पहले YouTube खोलें, फिर दोबारा कोशिश करें"
   }
 }

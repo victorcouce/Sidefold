@@ -432,5 +432,8 @@
   },
   "links": {
     "message": "链接"
+  },
+  "syncNoAccount": {
+    "message": "请先打开 YouTube，然后重试"
   }
 }

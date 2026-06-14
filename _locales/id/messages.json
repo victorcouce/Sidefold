@@ -432,5 +432,8 @@
   },
   "links": {
     "message": "Tautan"
+  },
+  "syncNoAccount": {
+    "message": "Buka YouTube terlebih dahulu, lalu coba lagi"
   }
 }

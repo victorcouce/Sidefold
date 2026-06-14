@@ -16,8 +16,8 @@ function loadNextScript(src, callback) {
 function initPopup() {
   loadNextScript('../shared/config.js', () => {
     loadNextScript('../shared/auth.js', () => {
-      loadNextScript('../shared/sync.js', () => {
-        loadNextScript('../shared/account.js', () => {
+      loadNextScript('../shared/account.js', () => {
+        loadNextScript('../shared/sync.js', () => {
           loadNextScript('../shared/i18n.js', () => {
             initAuth();
             initCarousel();
@@ -82,6 +82,13 @@ function initAuth() {
     btnSyncNow.disabled = true;
     btnSyncNow.textContent = YCSM.i18n?.t('syncing') || 'Syncing...';
     try {
+      // El popup no tiene acceso a ytcfg, así que el accountId solo puede
+      // venir de chrome.storage (escrito por el content script de YouTube).
+      const accountId = await YCSM.account?.loadAccountId?.();
+      if (!accountId) {
+        syncStatus.textContent = YCSM.i18n?.t('syncNoAccount') || 'Open YouTube first, then try again';
+        return;
+      }
       const result = await YCSM.sync?.sync?.();
       if (result?.success) {
         syncStatus.textContent = 'Last sync: now';
